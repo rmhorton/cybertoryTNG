@@ -1,0 +1,172 @@
+<html>
+<head><title>Primer Searcher</title></head>
+
+<body>
+    <h1>Primer Searcher</h1>
+    <style>
+        table {
+            border: 3px solid purple;
+            text-align: right;
+        }
+
+        th {
+            background-color: #eef;
+            color: #00a;
+            border: 3px solid #000;
+        }
+
+        th, td {
+            padding: 5px 10px 5px 10px;
+        }
+
+        tr:nth-child(even) {background-color: #eee;}
+
+        td.start {
+            background-color: #ff9;
+        }
+
+        textarea {
+            font-family:Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace;
+        }
+
+    </style>
+    </style>
+    <script language="javascript" src="PrimerSearcher.js"></script>
+    <script language="javascript">
+
+    const HIGHLIGHTED_BACKGROUND_COLOR = "yellow"
+
+    searcher = new PrimerSearcher()
+
+
+    call_fill_in_dp_matrix = function(){
+        template = document.getElementById("template").value
+        primer = document.getElementById("primer").value
+        searcher.set_template(template)
+        searcher.set_primer(primer)
+        searcher.fill_in_dp_matrix()
+    }
+
+    run_search =  function(){
+        template_seq = document.getElementById("template").value
+        searcher = new PrimerSearcher(template_seq)
+
+        primer_seq = document.getElementById("primer").value
+        searcher.search_primer(primer_seq)
+
+        text_output = document.getElementById("text_output")
+        text_output.value = searcher.alignments_as_text()
+
+        if (document.getElementById("show_dp_matrix").checked)
+            show_dp()
+    }
+
+
+    tablify = function(M, X, Y){
+        row_labels = Y.split('')
+        col_labels = X.split('')
+
+        html = '<table rules="all">\n<td></td>'
+        for (i in col_labels) html += `<th>${col_labels[i]}</th>`
+        for (j=0; j < M.length; j++){
+            html += "\t<tr>"
+            html += `<th>${row_labels[j]}</th>`
+            row = M[j]
+            for (i=0; i < row.length; i++){
+                class_tag = j==0 || i==0 ? ' class="start"' : ''
+                html += `<td${class_tag} id="r${j}c${i}">${M[j][i]}</td>`
+            }
+            html += "</tr>\n"
+        }
+        html += "</table>\n"
+        return html
+    }
+
+    highlight_cell = function(cell_id, highlight_color='f00'){
+        const HIGHLIGHTED_BORDER_STYLE = `3px solid #${highlight_color}`
+        cell = document.getElementById(cell_id)
+        cell.style.border = HIGHLIGHTED_BORDER_STYLE;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    animate_path = function(path){ // async function
+        for (x in path){
+            step = path[x];
+            console.log(`step=${step}`);
+            step_id = `r${step[1]}c${step[0]}`
+            // await sleep(i * 100);
+            highlight_cell(step_id)
+        }
+    }
+
+    animate_alignments = function(){
+        // animate_path(searcher.alignments[0].path)
+        console.log("animate alignments")
+        for (idx in searcher.alignments){
+            alignment = searcher.alignments[idx]
+            animate_path(alignment.path)
+        }
+    }
+
+    display_dp_matrix = function(){
+        call_fill_in_dp_matrix()
+        output = document.getElementById("html_output")
+        output.innerHTML = tablify(searcher.dp_matrix, '^' + searcher.X, '^' + searcher.Y)
+    }
+
+    highlight_starting_cells = function(){
+        starting_cells = searcher.get_starting_cells()
+        for (idx in starting_cells){
+            starting_cell = starting_cells[idx]
+            i = starting_cell[0]
+            j = starting_cell[1]
+            cell_id = `r${j}c${i}`
+            highlight_cell(cell_id, highlight_color='f0f')
+        }
+
+    }
+
+    show_dp = function(){
+        display_dp_matrix()
+        highlight_starting_cells()
+        animate_alignments()
+        highlight_starting_cells()
+    }
+
+    </script>
+
+<form>
+    <p>
+    Template:<br/>
+    <textarea id="template" rows="10" cols="110">ACGTCGTTCGTCGACAGTCATCGATAT</textarea>
+    </p>
+    <p>
+    Primer: 
+    <input type="button" value="reverse complement"
+    onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);"><br/>
+    <textarea id="primer" rows="10" cols="110">CGTCGGACAG</textarea>
+    </p>
+    <br/>
+    <input type="button" value="search" onclick="run_search()">  
+    <input type="checkbox" id="show_dp_matrix" checked /> show DP matrix
+    <br/>
+    <p>
+    Alignments:<br/>
+    <textarea id="text_output" rows="10" cols="110"></textarea>
+    </p>
+
+    <br/>
+    <div id="html_output"></div>
+</form>
+
+<!--
+    <input type="button" value="Random primer"
+    onClick="document.getElementById('primer').value = get_random_seq(5)"><input>
+    </p>
+
+-->
+
+</html>
