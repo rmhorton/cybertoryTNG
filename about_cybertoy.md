@@ -4,7 +4,7 @@ While no longer active, many of the Cybertory web pages are still viewable on th
 
 ## Form interface
 
-* [cybertory.org home page](https://web.archive.org/web/20150814010346/http://www.cybertory.org/]
+* [cybertory.org home page](https://web.archive.org/web/20150814010346/http://www.cybertory.org/)
 * Description of the [PCR Simulator](https://web.archive.org/web/20150814010346/http://www.cybertory.org/simulators/pcr/index.html)
 
 ## Flash interface
