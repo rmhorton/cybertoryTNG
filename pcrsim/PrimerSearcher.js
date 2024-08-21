@@ -26,7 +26,7 @@ function PrimerSearcher(template=''){
         this.template_end = path[0][0]
         this.template_begin = path[path.length - 1][0] + 1
 
-        this.as_printable_string = function(){
+        this.as_text = function(){
             spacer = ''
             for (i in this.A){
                 spacer += (this.A[i] == this.B[i]) ? '|' : ' '
@@ -45,21 +45,13 @@ function PrimerSearcher(template=''){
         [-1, -1, -1,  2]  // T
     ]
 
-    priming_matrix = [  // ???
-        // A     C     G     T
-        [ 2.0, -0.8, -1.2, -0.8], // A
-        [-0.8,  4.0, -0.8, -0.6], // C
-        [-1.2, -0.8,  4.0, -0.8], // G
-        [-0.8, -0.6, -0.8,  2.0]  // T
-    ]
-
-    this.match_matrix = alignment_matrix
+    this.scoring_matrix = alignment_matrix
 
     this.get_pair_score = function(x, y){
         alphabet = 'ACGT'
         let x_row = alphabet.indexOf(x)
         let y_col = alphabet.indexOf(y)
-        return this.match_matrix[y_col][x_row]
+        return this.scoring_matrix[y_col][x_row]
     }
 
     this.dp_matrix = [] // dynamic programming matrix
@@ -130,25 +122,26 @@ function PrimerSearcher(template=''){
     }
 
 
-    this.traverse = function(path, seqA='', seqB=''){
-        // recursive traceback
+    this.traceback = function(path, seqA='', seqB=''){
+        // recursive traversal
         // path is a list of coordinate pairs, each representing [i,j] coordinates.
         // Before each recursive call we add to the growing aligned sequences. Note that the sequences are 0 indexed because the DP matrix uses the zero row and column for initial scores, so sequence positions in the matrix are 1 indexed. This means we need to subtract one f
-    
-        end_point = path[path.length - 1]
-        i = end_point[0]
-        j = end_point[1]
 
-        // path: ${path}, path_length: ${path.length}, end_point:${end_point}, 
-        console.log(`traverse: i=${i}, j=${j}`)
+        let num_branches = 0; // DEBUG
+
+        let end_point = path[path.length - 1]
+        let i = end_point[0]
+        let j = end_point[1]
+
 
         // base case
-        if ( j == 0 || i == 0 ){
+        if ( (j == 0) || (i == 0) ){
+            console.log(`Done! num_branches=${num_branches}`)
             my_alignment = new Alignment(path, seqA, seqB)
             this.alignments.push(my_alignment)
             return
         }
-        
+
         let this_score  = this.dp_matrix[j][i];
         let match_score = this.get_pair_score(this.X[i-1], this.Y[j-1]);
         let diag_score  = this.dp_matrix[j - 1][i - 1];
@@ -156,41 +149,47 @@ function PrimerSearcher(template=''){
         let left_score  = this.dp_matrix[j][i - 1];
 
         // max_neighbor_value = Math.max(diag, up, left)
-
+        
         if ( this_score == diag_score + match_score ) {
+            num_branches++
+            console.log(`diagonal! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i-1, j-1])
-            this.traverse(new_path, this.X[i-1] + seqA, this.Y[j-1] + seqB)
+            this.traceback(new_path, this.X[i-1] + seqA, this.Y[j-1] + seqB)
         }
-        
-        if ( ( this_score == up_score + this.gap_creation_penalty ) && j!=0 ) {
+
+        if ( ( this_score == up_score + this.gap_creation_penalty) ) {
+            num_branches++
+            console.log(`up! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i, j-1])
-            this.traverse(new_path, '-' + seqA, this.Y[j-1] + seqB)
+            this.traceback(new_path, '-' + seqA, this.Y[j-1] + seqB)
         }
+
         
-        if ( ( this_score == left_score + this.gap_creation_penalty ) && i!=0) {
+        if ( ( this_score == left_score + this.gap_creation_penalty )) {
+            num_branches++
+            console.log(`left! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i-1, j])
-            this.traverse(new_path, this.X[i-1] + seqA, '-' + seqB)
+            this.traceback(new_path, this.X[i-1] + seqA, '-' + seqB)
         }
+
 
     }
 
-    this.get_alignments = function(){
-        starting_cells = this.get_starting_cells()
-        for (starting_cell_idx in starting_cells){
-            starting_cell = starting_cells[starting_cell_idx]
-            this.traverse([starting_cell])
-        }
-
-    }
+    // this.get_alignments = function(){}
 
     this.search_primer = function(primer){
         console.log(`primer = ${primer}`)
         this.set_primer(primer)
         this.fill_in_dp_matrix()
-        this.get_alignments()
+        starting_cells = this.get_starting_cells()
+        for (starting_cell_idx in starting_cells){
+            console.log(`starting_cell_idx=${starting_cell_idx}`)
+            starting_cell = starting_cells[starting_cell_idx]
+            this.traceback([starting_cell])
+        }
         return this.alignments
     }
 
@@ -199,7 +198,7 @@ function PrimerSearcher(template=''){
         for (idx in this.alignments){
             console.log(`alignments_as_text: idx=${idx}`)
             alignment = this.alignments[idx]
-            txt += alignment.as_printable_string() + "\n"
+            txt += alignment.as_text() + "\n"
         }
 
         return txt

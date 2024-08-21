@@ -95,7 +95,6 @@
     animate_path = function(path){ // async function
         for (x in path){
             step = path[x];
-            console.log(`step=${step}`);
             step_id = `r${step[1]}c${step[0]}`
             // await sleep(i * 100);
             highlight_cell(step_id)
@@ -103,8 +102,7 @@
     }
 
     animate_alignments = function(){
-        // animate_path(searcher.alignments[0].path)
-        console.log("animate alignments")
+        console.log(`animate ${searcher.alignments.length} alignments`)
         for (idx in searcher.alignments){
             alignment = searcher.alignments[idx]
             animate_path(alignment.path)
@@ -141,13 +139,12 @@
 <form>
     <p>
     Template:<br/>
-    <textarea id="template" rows="10" cols="110">ACGTCGTTCGTCGACAGTCATCGATAT</textarea>
+    <textarea id="template" rows="1" cols="110">AAGTCGTTAAAGTCGTTAA</textarea>
     </p>
     <p>
-    Primer: 
+    Primer: <textarea id="primer" rows="1" cols="20">GTCCGTT</textarea>
     <input type="button" value="reverse complement"
-    onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);"><br/>
-    <textarea id="primer" rows="10" cols="110">CGTCGGACAG</textarea>
+    onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
     </p>
     <br/>
     <input type="button" value="search" onclick="run_search()">  
