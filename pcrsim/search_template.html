@@ -1,0 +1,131 @@
+<html>
+<head>
+    <title>Search E. coli K-12 genome</title>
+</head>
+
+<body onload="init_page()">
+    <h1>Search E. coli K-12 genome</h1>
+    <style>
+        textarea {
+            font-family:Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace;
+        }
+    </style>
+    </style>
+    <script language="javascript" src="PrimerSearcher.js"></script>
+    <!-- script language="javascript" src="toy_template.js"></script -->
+    <script language="javascript" src="E_coli_K12.js"></script>
+     <script language="javascript">
+
+    searcher = new PrimerSearcher()
+
+
+    ngram_count = function(seq, n){
+        // seq = 'ABCDEFGHIJ'
+        ngrams = new Set()
+        for (let i=0; i < seq.length - n + 1; i++){
+            let start = i
+            let end = Math.min(i + n , seq.length)
+            ngram = seq.substring(start,end)
+            // console.log(`${ngram} [${start}, ${end}]`)
+            ngrams.add(ngram)
+        }
+        return ngrams.size
+    }
+    
+    max_ngrams = function(string_length, n, alphabet_size=4){
+        possible_ngrams = alphabet_size ** n
+        number_of_n_substrings = string_length - n + 1
+        return Math.min(possible_ngrams, number_of_n_substrings)
+    }
+
+    complexity = function(seq){
+        // https://resources.qiagenbioinformatics.com/manuals/clccancerresearchworkbench/200/index.php?manual=How_sequence_complexity_is_calculated.html
+        C = 1
+        for (n=1; n <=7; n++){
+            C *= ngram_count(seq, n)/max_ngrams(seq.length, n)
+        }
+        return C
+    }
+
+    guardrail = function(seq){
+        let msg = 'OK'
+        if (seq.length < 10){
+            msg = "primer must be at least 10 bases long"
+        }
+        if (seq.length > 16){
+            msg = "primer must be no more than 16 bases long"
+        }
+        if ( (seq.match(/[ACGT]/g) || []).length < seq.length){
+            msg = "primer cannot have nonstandard bases"
+        }
+        if (complexity(seq) < 0.4){
+            msg = "primer complexity is too low"
+        }
+        
+        return msg
+    }
+
+    run_search = function(fudge = 1){
+
+        searcher = new PrimerSearcher(TEMPLATE)
+
+        primer_seq = document.getElementById("primer").value.toUpperCase()
+
+        let guardrail_msg = guardrail(primer_seq)
+        if ( guardrail_msg != 'OK'){
+            text_output.value = "Primer failed guardrails: " + guardrail_msg
+        } else {
+            searcher.search_primer(primer_seq, fudge)
+            text_output = document.getElementById("text_output")
+            text_output.value = searcher.alignments_as_text()
+        }
+
+    }
+
+    init_page = function(){
+        TEMPLATE = TEMPLATE.replace('\n', '')
+        console.log(`Template loaded! (${TEMPLATE.length} bp)`);
+    }
+
+    </script>
+
+    <form>
+        <p>
+        Primer (10-16 bases): <textarea id="primer" rows="1" cols="16">TCTGTGTGGATTAA</textarea>
+        <input type="button" value="reverse complement"
+        onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
+        <br/>
+        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">0</textarea>
+        </p>
+        <br />
+
+        <input type="button" value="search" onclick="run_search(document.getElementById('score_tolerance').value)">  
+        <br/>
+        <p>
+        Alignments:<br/>
+        <textarea id="text_output" rows="20" cols="20"></textarea>
+        <br/>
+        </p>
+
+    </form>
+
+    <br/>
+    <h2>Notes</h2>
+    <p>
+        This app searches the E. coli K-12 reference genome for sites that approximately match the primer sequnece.
+        It only reports the best matches (the matches that have a score that is equal to or close to the best score in the whole genome).
+        If the best match is not very good, you will probably see more reported matches.
+
+        For example, the default query sequence is found exactly at one site in the E. coli genome, and no other sites match within a tolerance of 2 or less. So if you search for this sequence you will only see a single result.
+
+        The reverse complement of this sequence does not have any perfect matches, however, so f you search with that you get back a list of lower scoring matches.
+    </p>
+    <p>
+        The "score tolerance" controls how much worse an alignment score can be than the best one found and still be reported. 
+        In the current scoring schems a mismatch costs 1 point and a gap costs 3 points, so a score tolerance of 1 will allow one more mismatch, and a score tolerance of 3 will allow several mismatches or one gap more that those found in the best match.
+        If the best match is not very good, the matches within this score tolerance will be even worse.
+    </p>
+    <p>This page is still under development, and has not been thouroughly tested or bulletproofed. You can probably crash it.</p>
+
+</body>
+</html>

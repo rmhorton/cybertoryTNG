@@ -106,18 +106,27 @@ function PrimerSearcher(template=''){
 
     }
 
+    get_array_max = function(my_array){
+        // more scalable than Math.max(...my_array)
+        max_score = 0
+        for (let idx=0; idx < my_array.length; idx++){
+            if (my_array[idx] > max_score){
+                max_score = my_array[idx];
+            }
+        }
+        return max_score
+    }
 
     this.get_starting_cells = function(fudge=0){
         last_j = this.dp_matrix.length - 1
         last_row = this.dp_matrix[last_j]
-        max_score = Math.max(...last_row)
+        max_score = get_array_max(last_row)  // Math.max(...last_row)
         starting_cells = []
         for (i=0; i < last_row.length; i++){
             if (last_row[i] >= max_score - fudge){
                 starting_cells.push([i, last_j])
             }
         }
-        console.log(`number of starting cells:${starting_cells.length}`)
         return starting_cells
     }
 
@@ -127,16 +136,12 @@ function PrimerSearcher(template=''){
         // path is a list of coordinate pairs, each representing [i,j] coordinates.
         // Before each recursive call we add to the growing aligned sequences. Note that the sequences are 0 indexed because the DP matrix uses the zero row and column for initial scores, so sequence positions in the matrix are 1 indexed. This means we need to subtract one f
 
-        let num_branches = 0; // DEBUG
-
         let end_point = path[path.length - 1]
         let i = end_point[0]
         let j = end_point[1]
 
-
         // base case
         if ( (j == 0) || (i == 0) ){
-            console.log(`Done! num_branches=${num_branches}`)
             my_alignment = new Alignment(path, seqA, seqB)
             this.alignments.push(my_alignment)
             return
@@ -151,25 +156,18 @@ function PrimerSearcher(template=''){
         // max_neighbor_value = Math.max(diag, up, left)
         
         if ( this_score == diag_score + match_score ) {
-            num_branches++
-            console.log(`diagonal! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i-1, j-1])
             this.traceback(new_path, this.X[i-1] + seqA, this.Y[j-1] + seqB)
         }
 
         if ( ( this_score == up_score + this.gap_creation_penalty) ) {
-            num_branches++
-            console.log(`up! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i, j-1])
             this.traceback(new_path, '-' + seqA, this.Y[j-1] + seqB)
         }
-
         
         if ( ( this_score == left_score + this.gap_creation_penalty )) {
-            num_branches++
-            console.log(`left! num_branches=${num_branches}`)
             new_path = path.slice()
             new_path.push([i-1, j])
             this.traceback(new_path, this.X[i-1] + seqA, '-' + seqB)
@@ -178,15 +176,11 @@ function PrimerSearcher(template=''){
 
     }
 
-    // this.get_alignments = function(){}
-
-    this.search_primer = function(primer){
-        console.log(`primer = ${primer}`)
+    this.search_primer = function(primer, fudge=0){
         this.set_primer(primer)
         this.fill_in_dp_matrix()
-        starting_cells = this.get_starting_cells()
+        starting_cells = this.get_starting_cells(fudge)
         for (starting_cell_idx in starting_cells){
-            console.log(`starting_cell_idx=${starting_cell_idx}`)
             starting_cell = starting_cells[starting_cell_idx]
             this.traceback([starting_cell])
         }
@@ -196,7 +190,6 @@ function PrimerSearcher(template=''){
     this.alignments_as_text = function(){
         txt = "Alignments:\n"
         for (idx in this.alignments){
-            console.log(`alignments_as_text: idx=${idx}`)
             alignment = this.alignments[idx]
             txt += alignment.as_text() + "\n"
         }
