@@ -8,65 +8,69 @@ An element in a matrix is indexed by row then column, like M[j][i].
 In normal matrix notation that would be M[i,j]
 */
 
-
-
-function PrimerSearcher(template=''){
-
-    this.X = template
-    this.Y = ""  // primer
-    this.alignments = []
-
+class AlternativeAlignments{
+    constructor(){
+        this.alignments = []
+    }
+}
     
-    function Alignment(path, seqA, seqB){
-        // Helper class for primer-template alignmentws
+class Alignment{
+    
+    constructor(path, seqA, seqB){
         this.path=path
-
         this.A = seqA
         this.B = seqB
         this.template_end = path[0][0]
         this.template_begin = path[path.length - 1][0] + 1
-
-        this.as_text = function(){
-            spacer = ''
-            for (i in this.A){
-                spacer += (this.A[i] == this.B[i]) ? '|' : ' '
-            }
-            return `[${this.template_begin}:${this.template_end}]\n${this.A}\n${spacer}\n${this.B}\n`
-        }
     }
 
-    this.gap_creation_penalty = -3
+    as_text = function(){
+        let spacer = ''
+        for (let i in this.A){
+            spacer += (this.A[i] == this.B[i]) ? '|' : ' '
+        }
+        return `[${this.template_begin}:${this.template_end}]\n${this.A}\n${spacer}\n${this.B}\n`
+    }
+}
 
-    alignment_matrix = [  
-        //A   C   G   T
-        [ 2, -1, -1, -1], // A
-        [-1,  2, -1, -1], // C
-        [-1, -1,  2, -1], // G
-        [-1, -1, -1,  2]  // T
-    ]
+class PrimerSearcher{
 
-    this.scoring_matrix = alignment_matrix
+    constructor(template=''){
+        this.X = template
+        this.Y = ""  // primer
+        this.alternative_alignments_list = []
 
-    this.get_pair_score = function(x, y){
-        alphabet = 'ACGT'
+        this.gap_creation_penalty = -3
+
+        this.scoring_matrix = [  
+            //A   C   G   T
+            [ 2, -1, -1, -1], // A
+            [-1,  2, -1, -1], // C
+            [-1, -1,  2, -1], // G
+            [-1, -1, -1,  2]  // T
+        ]
+
+        this.dp_matrix = [] // dynamic programming matrix
+    }
+
+
+    set_template = function(template_seq) {
+        this.X = template_seq
+    }
+
+    set_primer = function(primer_seq) {
+        this.Y = primer_seq
+    }
+
+    get_pair_score = function(x, y){
+        const alphabet = 'ACGT'
         let x_row = alphabet.indexOf(x)
         let y_col = alphabet.indexOf(y)
         return this.scoring_matrix[y_col][x_row]
     }
 
-    this.dp_matrix = [] // dynamic programming matrix
 
-
-    this.set_template = function(template_seq) {
-        this.X = template_seq
-    }
-
-    this.set_primer = function(primer_seq) {
-        this.Y = primer_seq
-    }
-
-
-    this.compute_cell_score = function(i, j) {
+    compute_cell_score = function(i, j) {
         // Calculate value for a given cell in the score matrix.
 
         // Look up score for matching this pair.
@@ -81,11 +85,11 @@ function PrimerSearcher(template=''){
         return Math.max(score_diag, score_down, score_over);
     }
 
-    this.fill_in_dp_matrix = function() {
+    fill_in_dp_matrix = function() {
         // Create scoring matrix 
   
-        cols = this.X.length
-        rows = this.Y.length
+        let cols = this.X.length
+        let rows = this.Y.length
   
         // initialize dynamic programming matrix with 0s, incluing borders
         this.dp_matrix = [];
@@ -108,7 +112,7 @@ function PrimerSearcher(template=''){
 
     get_array_max = function(my_array){
         // more scalable than Math.max(...my_array)
-        max_score = 0
+        let max_score = 0
         for (let idx=0; idx < my_array.length; idx++){
             if (my_array[idx] > max_score){
                 max_score = my_array[idx];
@@ -117,12 +121,12 @@ function PrimerSearcher(template=''){
         return max_score
     }
 
-    this.get_starting_cells = function(fudge=0){
-        last_j = this.dp_matrix.length - 1
-        last_row = this.dp_matrix[last_j]
-        max_score = get_array_max(last_row)  // Math.max(...last_row)
-        starting_cells = []
-        for (i=0; i < last_row.length; i++){
+    get_starting_cells = function(fudge=0){
+        let last_j = this.dp_matrix.length - 1
+        let last_row = this.dp_matrix[last_j]
+        let max_score = this.get_array_max(last_row)  // Math.max(...last_row)
+        let starting_cells = []
+        for (let i=0; i < last_row.length; i++){
             if (last_row[i] >= max_score - fudge){
                 starting_cells.push([i, last_j])
             }
@@ -131,7 +135,7 @@ function PrimerSearcher(template=''){
     }
 
 
-    this.traceback = function(path, seqA='', seqB=''){
+    traceback = function(path, aa, seqA='', seqB=''){
         // recursive traversal
         // path is a list of coordinate pairs, each representing [i,j] coordinates.
         // Before each recursive call we add to the growing aligned sequences. Note that the sequences are 0 indexed because the DP matrix uses the zero row and column for initial scores, so sequence positions in the matrix are 1 indexed. This means we need to subtract one f
@@ -142,8 +146,8 @@ function PrimerSearcher(template=''){
 
         // base case
         if ( (j == 0) || (i == 0) ){
-            my_alignment = new Alignment(path, seqA, seqB)
-            this.alignments.push(my_alignment)
+            var my_alignment = new Alignment(path, seqA, seqB) // let or var?
+            aa.alignments.push(my_alignment)
             return
         }
 
@@ -156,51 +160,54 @@ function PrimerSearcher(template=''){
         // max_neighbor_value = Math.max(diag, up, left)
         
         if ( this_score == diag_score + match_score ) {
-            new_path = path.slice()
+            let new_path = path.slice()
             new_path.push([i-1, j-1])
-            this.traceback(new_path, this.X[i-1] + seqA, this.Y[j-1] + seqB)
+            this.traceback(new_path, aa, this.X[i-1] + seqA, this.Y[j-1] + seqB)
         }
 
         if ( ( this_score == up_score + this.gap_creation_penalty) ) {
-            new_path = path.slice()
+            let new_path = path.slice()
             new_path.push([i, j-1])
-            this.traceback(new_path, '-' + seqA, this.Y[j-1] + seqB)
+            this.traceback(new_path, aa, '-' + seqA, this.Y[j-1] + seqB)
         }
         
         if ( ( this_score == left_score + this.gap_creation_penalty )) {
-            new_path = path.slice()
+            let new_path = path.slice()
             new_path.push([i-1, j])
-            this.traceback(new_path, this.X[i-1] + seqA, '-' + seqB)
+            this.traceback(new_path, aa, this.X[i-1] + seqA, '-' + seqB)
         }
 
 
     }
 
-    this.search_primer = function(primer, fudge=0){
+    search_primer = function(primer, fudge=0){
         this.set_primer(primer)
         this.fill_in_dp_matrix()
-        starting_cells = this.get_starting_cells(fudge)
-        for (starting_cell_idx in starting_cells){
-            starting_cell = starting_cells[starting_cell_idx]
-            this.traceback([starting_cell])
+        // To Do: one AlternativeAlignments per starting cell
+        let starting_cells = this.get_starting_cells(fudge)
+
+        for (let starting_cell of starting_cells){
+            let aa = new AlternativeAlignments()
+            this.traceback([starting_cell], aa)
+            this.alternative_alignments_list.push(aa)
         }
-        return this.alignments
+        return this.alternative_alignments_list
     }
 
-    this.alignments_as_text = function(){
-        txt = "Alignments:\n"
-        for (idx in this.alignments){
-            alignment = this.alignments[idx]
-            txt += alignment.as_text() + "\n"
+    get_alignments_as_text = function(){
+        let alignments_text = "Alignments:\n"
+        for (let aa of this.alternative_alignments_list){
+            for (let alignment of aa.alignments){
+                alignments_text += '\n' + alignment.as_text()
+            }
+            alignments_text += '\n===\n'
         }
-
-        return txt
+        return alignments_text
     }
 
-    ///
 
-    this.revcomp = function(s){
-        // Test this!
+
+    revcomp = function(s){
         complement = {
             'A': 'T',
             'C': 'G',
