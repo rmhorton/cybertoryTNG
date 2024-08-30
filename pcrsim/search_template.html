@@ -49,11 +49,11 @@
 
     guardrail = function(seq){
         let msg = 'OK'
-        if (seq.length < 10){
-            msg = "primer must be at least 10 bases long"
+        if (seq.length < 5){
+            msg = "primer must be at least 5 bases long"
         }
-        if (seq.length > 30){
-            msg = "primer must be no more than 30 bases long"
+        if (seq.length > 50){
+            msg = "primer must be no more than 50 bases long"
         }
         if ( (seq.match(/[ACGT]/g) || []).length < seq.length){
             msg = "primer cannot have nonstandard bases"
@@ -103,7 +103,7 @@
 
     <form>
         <p>
-        Primer (10-30 bases): <textarea id="primer" rows="1" cols="30">ATGGCAATGTTCAGCGTTTCTGGTCCGGGG</textarea>
+        Primer (5-50 bases): <textarea id="primer" rows="1" cols="50">ATGGCAATGTTCAGCGTTTCTGGTCCGGGGATGAAAGGGATGGTCGGCAT</textarea>
         <input type="button" value="reverse complement"
         onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
         <br/>
@@ -115,7 +115,7 @@
         <br/>
         <p>
         Alignments:<br/>
-        <textarea id="text_output" rows="20" cols="33"></textarea>
+        <textarea id="text_output" rows="20" cols="53"></textarea>
         <br/>
         <div id="elapsed_time_div"></div>
         </p>
