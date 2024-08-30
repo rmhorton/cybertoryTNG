@@ -11,5 +11,5 @@ While no longer active, many of the Cybertory web pages are still viewable on th
 
 ![flash interface](https://github.com/rmhorton/cybertoryTNG/blob/main/flashInterface.png)
 * [Cybertory.com homepage](https://web.archive.org/web/20080911131451/http://www.cybertory.com/)
-* [Reaction setup Flash app](https://web.archive.org/web/20081220111719/http://cybertory.com/cgi-bin/lab.cgi?place=rxnSetup) (this doesn't really work without a server, but it at least runs in the wayback emulator!).
+* [Reaction setup Flash app](https://web.archive.org/web/20081220111719/http://cybertory.com/cgi-bin/lab.cgi?place=rxnSetup) (this doesn't really work without a server, but it at least loads in the wayback emulator!).
 
