@@ -52,46 +52,58 @@
         if (seq.length < 10){
             msg = "primer must be at least 10 bases long"
         }
-        if (seq.length > 16){
-            msg = "primer must be no more than 16 bases long"
+        if (seq.length > 30){
+            msg = "primer must be no more than 30 bases long"
         }
         if ( (seq.match(/[ACGT]/g) || []).length < seq.length){
             msg = "primer cannot have nonstandard bases"
         }
-        if (complexity(seq) < 0.4){
+        if (complexity(seq) < 0.3){
             msg = "primer complexity is too low"
         }
         
         return msg
     }
 
-    run_search = function(fudge = 1){
+    show_searching_msg = function(){
+        document.getElementById("text_output").value = "Searching ..."
+        window.setTimeout(run_search, 1)
+    }
 
-        searcher = new PrimerSearcher(TEMPLATE)
+    run_search = function(){
+        let fudge = document.getElementById('score_tolerance').value
 
-        primer_seq = document.getElementById("primer").value.toUpperCase()
+        let searcher = new PrimerSearcher(TEMPLATE)
 
+        let text_output = document.getElementById("text_output")
+        text_output.value = ""
+
+        let primer_seq = document.getElementById("primer").value.toUpperCase()
         let guardrail_msg = guardrail(primer_seq)
         if ( guardrail_msg != 'OK'){
             text_output.value = "Primer failed guardrails: " + guardrail_msg
         } else {
+            let start = new Date()
             searcher.search_primer(primer_seq, fudge)
-            text_output = document.getElementById("text_output")
-            text_output.value = searcher.alignments_as_text()
+            let finish = new Date()
+            let elapsed_miliseconds = finish - start
+            text_output.value = searcher.get_alignments_as_text()
+            let time_elapsed_msg = `The search for this ${primer_seq.length} bp sequence took ${elapsed_miliseconds/1000} seconds.`
+            document.getElementById("elapsed_time_div").innerHTML = time_elapsed_msg
         }
-
+        
     }
 
     init_page = function(){
         TEMPLATE = TEMPLATE.replace('\n', '')
-        console.log(`Template loaded! (${TEMPLATE.length} bp)`);
+        // console.log(`Template loaded! (${TEMPLATE.length} bp)`);
     }
 
     </script>
 
     <form>
         <p>
-        Primer (10-16 bases): <textarea id="primer" rows="1" cols="16">TCTGTGTGGATTAA</textarea>
+        Primer (10-30 bases): <textarea id="primer" rows="1" cols="30">ATGGCAATGTTCAGCGTTTCTGGTCCGGGG</textarea>
         <input type="button" value="reverse complement"
         onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
         <br/>
@@ -99,12 +111,13 @@
         </p>
         <br />
 
-        <input type="button" value="search" onclick="run_search(document.getElementById('score_tolerance').value)">  
+        <input type="button" value="search" onclick="show_searching_msg()">      
         <br/>
         <p>
         Alignments:<br/>
-        <textarea id="text_output" rows="20" cols="20"></textarea>
+        <textarea id="text_output" rows="20" cols="33"></textarea>
         <br/>
+        <div id="elapsed_time_div"></div>
         </p>
 
     </form>

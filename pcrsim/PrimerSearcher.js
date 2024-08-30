@@ -209,7 +209,7 @@ class PrimerSearcher{
 
 
     revcomp = function(s){
-        complement = {
+        let complement = {
             'A': 'T',
             'C': 'G',
             'G': 'C',
@@ -227,7 +227,7 @@ class PrimerSearcher{
             'X': 'X',
             'N': 'N'
         }
-        reversed = s.toUpperCase().split('').reverse().join('')
+        let reversed = s.toUpperCase().split('').reverse().join('')
         return reversed.replace(/[ACGTYRWSKMDHVBXN]/g, x => complement[x])
     }
 
