@@ -36,20 +36,17 @@
 
     const HIGHLIGHTED_BACKGROUND_COLOR = "yellow"
 
-    searcher = new PrimerSearcher()
-
-
-
+    SEARCHER = new PrimerSearcher()
 
     run_search =  function(){
         template_seq = document.getElementById("template").value
-        searcher = new PrimerSearcher(template_seq)
+        SEARCHER = new PrimerSearcher(template_seq)
 
         primer_seq = document.getElementById("primer").value
-        searcher.search_primer(primer_seq)
+        SEARCHER.search_primer(primer_seq)
 
         text_output = document.getElementById("text_output")
-        text_output.value = searcher.get_alignments_as_text()
+        text_output.value = SEARCHER.get_alignments_as_text()
 
         if (document.getElementById("show_dp_matrix").checked)
             show_dp()
@@ -87,7 +84,7 @@
     }
 
     ANIMATION_PAUSE = 100
-    animate_path = async function(path, my_start_offset=0){ // async 
+    animate_path = async function(path, my_start_offset=0){ 
         for (i in path){
             step = path[i];
             step_id = `r${step[1]}c${step[0]}`
@@ -96,10 +93,10 @@
         }
     }
 
-    animate_alignments = async function(){ // async 
+    animate_alignments = async function(){ 
         start_offset = 0
-        for (aa_idx in searcher.alternative_alignments_list){
-            aa = searcher.alternative_alignments_list[aa_idx]
+        for (aa_idx in SEARCHER.alternative_alignments_list){
+            aa = SEARCHER.alternative_alignments_list[aa_idx]
             for (alignment_idx in aa.alignments){
                 alignment = aa.alignments[alignment_idx]
                 animate_path(alignment.path, start_offset)
@@ -114,19 +111,19 @@
     call_fill_in_dp_matrix = function(){
         template = document.getElementById("template").value
         primer = document.getElementById("primer").value
-        searcher.set_template(template)
-        searcher.set_primer(primer)
-        searcher.fill_in_dp_matrix()
+        SEARCHER.set_template(template)
+        SEARCHER.set_primer(primer)
+        SEARCHER.fill_in_dp_matrix()
     }
 
     display_dp_matrix = function(){
         call_fill_in_dp_matrix()
         output = document.getElementById("html_output")
-        output.innerHTML = tablify(searcher.dp_matrix, '^' + searcher.X, '^' + searcher.Y)
+        output.innerHTML = tablify(SEARCHER.dp_matrix, '^' + SEARCHER.X, '^' + SEARCHER.Y)
     }
 
     highlight_starting_cells = function(){
-        starting_cells = searcher.get_starting_cells()
+        starting_cells = SEARCHER.get_starting_cells()
         for (idx in starting_cells){
             starting_cell = starting_cells[idx]
             i = starting_cell[0]
@@ -149,12 +146,12 @@
 <form>
     <p>
     Template:<br/>
-    <textarea id="template" rows="1" cols="110">AAGTCGTTAAAGTCGTTAA</textarea>
+    <textarea id="template" rows="1" cols="80">AAGTCGTTAAAGTCGTTAA</textarea>
     </p>
     <p>
     Primer: <textarea id="primer" rows="1" cols="20">GTCCGTT</textarea>
     <input type="button" value="reverse complement"
-    onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
+    onClick="document.getElementById('primer').value = SEARCHER.revcomp(document.getElementById('primer').value);">
     </p>
     <br/>
     <input type="button" value="search" onclick="run_search()">  
@@ -162,7 +159,7 @@
     <br/>
     <p>
     Alignments:<br/>
-    <textarea id="text_output" rows="10" cols="110"></textarea>
+    <textarea id="text_output" rows="10" cols="80"></textarea>
     </p>
 
     <br/>

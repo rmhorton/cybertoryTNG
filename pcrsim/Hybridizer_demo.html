@@ -1,0 +1,153 @@
+<html>
+<head>
+<title>Primer Hybridization Model</title>
+<style>
+    .sequence, textarea {
+        font-family: monospace;
+    }
+
+</style>
+<body onload="init()">
+
+<h1>Primer Hybridization Model</h1>
+<script language="javascript" src="Hybridizer.js"></script>
+<script language="javascript" src="PrimerSearcher.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+<body>
+    <form id="controls">
+
+        Template sequence:<br />
+        <div id="template" class="sequence"></div><br />
+        <br />
+        <label for="primer_seq">Primer sequence:</label>
+        <input type="text" id="primer_seq" value="ATGGCAATGTTCAG"></input>
+        <br />
+        <input type="button" value="align" onclick="run_search()">
+        <br />
+        <textarea id="alignment" rows="6" cols="30"></textarea>
+        <br />
+        <input type="button" value="show hybridization" onclick="run_hybridization()">
+        <br />
+       
+        <label for="primer_conc">Primer concentration (uM):</label>
+        <input type="text" id="primer_conc" value="1" onchange="run_hybridization()"></input>
+        <label for="template_conc">Template concentration (uM):</label>
+        <input type="text" id="template_conc" value="0.000001" onchange="run_hybridization()"></input><br />
+        <label for="K_control">Potassium (mM):</label>
+        0<input type="range" min="0" max="100" value="50" class="slider" id="Mg_conc" onchange="run_hybridization()">100<br />
+        <label for="Mg_control">Magnesium (mM):</label>
+        0<input type="range" min="0" max="8" value="1" class="slider" id="K_conc" onchange="run_hybridization()">8<br />
+        
+    </form>
+<canvas id="myChart" style="width:100%;max-width:600px"></canvas>
+
+<script>
+
+const TEMPLATE = "ATGGCAATGTTCAGCGTTTCTGGTCCGGGGATGAAAGGGATGGTCGGCAT";
+var SEARCHER = new PrimerSearcher(TEMPLATE);
+
+var HYBRIDIZER = new Hybridizer();
+
+
+
+// HYBRIDIZER.hybridize(concA=1e-6, concB=1e-9, dH=-83300, dS=-219.1, T_celsius=55)
+// HYBRIDIZER.priming_coeff('ACGTAACCGGTT', 'ACGTAACCGGTT', 1e-6, 55, 50, 1)
+
+var MY_ALIGNMENT;
+
+run_search = function(){
+    primer_seq = document.getElementById("primer_seq").value
+
+    alternative_alignments_list = SEARCHER.search_primer(primer_seq)
+    MY_ALIGNMENT = alternative_alignments_list[0].alignments[0] // just take the first one for now
+
+    document.getElementById("alignment").value = MY_ALIGNMENT.as_text()
+}
+
+run_hybridization = function(){
+    conc_primer = document.getElementById("primer_conc").value
+    conc_template = document.getElementById("template_conc").value
+
+    K_conc = document.getElementById("K_conc").value
+    Mg_conc = document.getElementById("Mg_conc").value
+
+    dS_salt = HYBRIDIZER.adjust_S_for_salt(primer_seq.length, K_conc, Mg_conc)
+
+    // console.log(`seqA=${seqA}, seqB=${seqB}, concA=${concA}, concB=${concB}`)
+
+    HS = HYBRIDIZER.calculate_aligned_sequence_HS(MY_ALIGNMENT.A, MY_ALIGNMENT.B)
+
+    const temperatures = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+    hyb_concentrations = titrate_primer_concentration(conc_primer, conc_template, HS[0], HS[1] + dS_salt, temperatures)
+    plotLine(temperatures, hyb_concentrations)
+}
+
+
+
+titrate_primer_concentration = function(concA, concB, dH, dS, temperatures){
+    let yValues = [];
+    for (i in temperatures){
+        yValues.push( HYBRIDIZER.hybridize(concA * 1e-6, concB * 1e-6, dH, dS, T_celsius=temperatures[i]) )
+    }
+    return yValues
+}
+
+
+plotLine = function(xValues, yValues){
+    new Chart("myChart", {
+    type: "line",
+    data: {
+        labels: xValues,
+        datasets: [{
+            // text = 'hybridized strand concentration',
+            fill: false,
+            lineTension: 0,
+            backgroundColor: "rgba(0,0,255,1.0)",
+            borderColor: "rgba(0,0,255,0.1)",
+            data: yValues
+        }]
+    },
+        options: {
+
+            scales: {
+                y: {
+                    title: {
+                        display: true,
+                        align: 'center',
+                        text: 'Y-Axis Title',
+                        color: 'black',
+                        font: {
+                            family: 'Arial',
+                            size: 14,
+                            weight: 'bold',
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 5,
+                            left: 0,
+                            right: 0,
+                        },
+                    },
+                },
+            },
+        }
+    }
+    );
+}
+
+function init(){
+    template_div = document.getElementById("template")
+    template_div.innerHTML = TEMPLATE
+    // run_search()
+}
+
+</script>
+
+
+
+<br />
+
+
+
+</body>
+</html>

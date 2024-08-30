@@ -186,6 +186,7 @@ class PrimerSearcher{
         // To Do: one AlternativeAlignments per starting cell
         let starting_cells = this.get_starting_cells(fudge)
 
+        this.alternative_alignments_list = []
         for (let starting_cell of starting_cells){
             let aa = new AlternativeAlignments()
             this.traceback([starting_cell], aa)
