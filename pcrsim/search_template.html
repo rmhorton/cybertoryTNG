@@ -18,35 +18,6 @@
 
     searcher = new PrimerSearcher()
 
-
-    ngram_count = function(seq, n){
-        // seq = 'ABCDEFGHIJ'
-        ngrams = new Set()
-        for (let i=0; i < seq.length - n + 1; i++){
-            let start = i
-            let end = Math.min(i + n , seq.length)
-            ngram = seq.substring(start,end)
-            // console.log(`${ngram} [${start}, ${end}]`)
-            ngrams.add(ngram)
-        }
-        return ngrams.size
-    }
-    
-    max_ngrams = function(string_length, n, alphabet_size=4){
-        possible_ngrams = alphabet_size ** n
-        number_of_n_substrings = string_length - n + 1
-        return Math.min(possible_ngrams, number_of_n_substrings)
-    }
-
-    complexity = function(seq){
-        // https://resources.qiagenbioinformatics.com/manuals/clccancerresearchworkbench/200/index.php?manual=How_sequence_complexity_is_calculated.html
-        C = 1
-        for (n=1; n <=7; n++){
-            C *= ngram_count(seq, n)/max_ngrams(seq.length, n)
-        }
-        return C
-    }
-
     guardrail = function(seq){
         let msg = 'OK'
         if (seq.length < 5){
@@ -58,7 +29,7 @@
         if ( (seq.match(/[ACGT]/g) || []).length < seq.length){
             msg = "primer cannot have nonstandard bases"
         }
-        if (complexity(seq) < 0.3){
+        if (searcher.get_sequence_complexity(seq) < 0.3){
             msg = "primer complexity is too low"
         }
         
@@ -67,6 +38,7 @@
 
     show_searching_msg = function(){
         document.getElementById("text_output").value = "Searching ..."
+        document.getElementById("elapsed_time_div").innerHTML = "&nbsp;"
         window.setTimeout(run_search, 1)
     }
 
@@ -117,7 +89,7 @@
         Alignments:<br/>
         <textarea id="text_output" rows="20" cols="53"></textarea>
         <br/>
-        <div id="elapsed_time_div"></div>
+        <div id="elapsed_time_div">&nbsp;</div>
         </p>
 
     </form>
