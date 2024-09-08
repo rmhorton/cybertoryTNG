@@ -206,7 +206,33 @@ class PrimerSearcher{
         return alignments_text
     }
 
+    // guardrail functions
+    get_sequence_complexity = function(seq){
+        // https://resources.qiagenbioinformatics.com/manuals/clccancerresearchworkbench/200/index.php?manual=How_sequence_complexity_is_calculated.html
+        // TEST THIS!!
+        var ngram_count = function(seq, n){
+            // seq = 'ABCDEFGHIJ'
+            let ngrams = new Set()
+            for (let i=0; i < seq.length - n + 1; i++){
+                let start = i
+                let end = Math.min(i + n , seq.length + 1)
+                ngrams.add(seq.substring(start,end))
+            }
+            return ngrams.size
+        }
+        
+        var max_ngrams = function(string_length, n, alphabet_size=4){
+            let possible_ngrams = alphabet_size ** n
+            let number_of_n_substrings = string_length - n + 1
+            return Math.min(possible_ngrams, number_of_n_substrings)
+        }
 
+        let C = 1
+        for (let n=1; n <= 7 && n <= seq.length; n++){ // does this work for sequences shorter than 7bp?
+            C *= ngram_count(seq, n)/max_ngrams(seq.length, n)
+        }
+        return C
+    }
 
     revcomp = function(s){
         let complement = {
