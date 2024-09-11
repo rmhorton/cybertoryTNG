@@ -9,8 +9,14 @@ In normal matrix notation that would be M[i,j]
 */
 
 class AlternativeAlignments{
-    constructor(){
+    constructor(alignment_score){
+        this.alignment_score = alignment_score
         this.alignments = []
+    }
+
+    add_alighment = function(my_alignment){
+        my_alignment.set_alignment_score(this.alignment_score)
+        this.alignments.push(my_alignment)
     }
 }
     
@@ -22,6 +28,11 @@ class Alignment{
         this.B = seqB
         this.template_end = path[0][0]
         this.template_begin = path[path.length - 1][0] + 1
+        this.alignment_score = undefined
+    }
+
+    set_alignment_score = function(my_alignment_score){
+        this.alignment_score = my_alignment_score
     }
 
     as_text = function(){
@@ -29,7 +40,7 @@ class Alignment{
         for (let i in this.A){
             spacer += (this.A[i] == this.B[i]) ? '|' : ' '
         }
-        return `[${this.template_begin}:${this.template_end}]\n${this.A}\n${spacer}\n${this.B}\n`
+        return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}\n${this.A}\n${spacer}\n${this.B}\n`
     }
 }
 
@@ -147,7 +158,8 @@ class PrimerSearcher{
         // base case
         if ( (j == 0) || (i == 0) ){
             var my_alignment = new Alignment(path, seqA, seqB) // let or var?
-            aa.alignments.push(my_alignment)
+            // aa.alignments.push(my_alignment)
+            aa.add_alighment(my_alignment)
             return
         }
 
@@ -180,15 +192,23 @@ class PrimerSearcher{
 
     }
 
-    search_primer = function(primer, fudge=0){
-        this.set_primer(primer)
+    search_primer = function(primer, strand='top', fudge=0){
+        if (strand=='top'){
+            this.set_primer(primer)
+        } else {
+            this.set_primer(this.revcomp(primer))
+        }
+        
         this.fill_in_dp_matrix()
         // To Do: one AlternativeAlignments per starting cell
         let starting_cells = this.get_starting_cells(fudge)
 
         this.alternative_alignments_list = []
         for (let starting_cell of starting_cells){
-            let aa = new AlternativeAlignments()
+            let i = starting_cell[0]
+            let j = starting_cell[1]
+            let alignment_score = this.dp_matrix[j][i]
+            let aa = new AlternativeAlignments(alignment_score)
             this.traceback([starting_cell], aa)
             this.alternative_alignments_list.push(aa)
         }
