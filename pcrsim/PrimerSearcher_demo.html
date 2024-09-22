@@ -32,18 +32,27 @@
     </style>
     </style>
     <script language="javascript" src="PrimerSearcher.js"></script>
+    <script language="javascript" src="Hybridizer.js"></script>
+
     <script language="javascript">
 
     const HIGHLIGHTED_BACKGROUND_COLOR = "yellow"
 
-    SEARCHER = new PrimerSearcher()
+    var SEARCHER = new PrimerSearcher()
+    var HYBRIDIZER = new Hybridizer()  // Comment out if you don't want to add thermodynamic values to alignments
 
     run_search =  function(){
         template_seq = document.getElementById("template").value
+        fudge = document.getElementById("score_tolerance").value
+
         SEARCHER = new PrimerSearcher(template_seq)
 
         primer_seq = document.getElementById("primer").value
-        SEARCHER.search_primer(primer_seq)
+        SEARCHER.search_primer(primer_seq, strand="top", fudge=fudge)
+
+        // add thermodynamic estimates to alternative alignments
+        if (HYBRIDIZER != undefined)
+            HYBRIDIZER.add_aa_list_thermodynamics(SEARCHER.alternative_alignments_list)
 
         text_output = document.getElementById("text_output")
         text_output.value = SEARCHER.get_alignments_as_text()
@@ -151,7 +160,9 @@
     <p>
     Primer: <textarea id="primer" rows="1" cols="20">GTCCGTT</textarea>
     <input type="button" value="reverse complement"
-    onClick="document.getElementById('primer').value = SEARCHER.revcomp(document.getElementById('primer').value);">
+        onClick="document.getElementById('primer').value = SEARCHER.revcomp(document.getElementById('primer').value);">
+    <br/>
+    score tolerance: <textarea id="score_tolerance" rows="1" cols="3">5</textarea>
     </p>
     <br/>
     <input type="button" value="search" onclick="run_search()">  

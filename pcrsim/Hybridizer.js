@@ -113,7 +113,7 @@ function Hybridizer(){
     }
 
     this.calculate_aligned_sequence_HS = function(seq1, seq2){
-        // calculate_aligned_sequence_HS('ACGTAACCGGTT', 'ACGTAACCGGTT')
+        // HYBRIDIZER.calculate_aligned_sequence_HS('ACGTAACCGGTT', 'ACGTAACCGGTT')
 
         let enthalpy = 0
         let entropy = 0
@@ -238,4 +238,42 @@ function Hybridizer(){
 		let result = (root2 >= 0) ? root2 : (root1 >= 0) ? root1 : 0; // kludge to avoid negative concentrations XXX
         return result
 	}
+
+    this.add_aa_list_thermodynamics = function(aa_list){
+        let G_min = 0
+        let G_min_index = -1
+        const T0 = 273.15
+        let T = 55
+        for (let aa of aa_list){
+            for (let alignment of aa.alignments){
+                let template_HS = this.calculate_aligned_sequence_HS(alignment.A, alignment.B)
+                let primer_HS = this.calculate_aligned_sequence_HS(alignment.B, alignment.B)
+                alignment.template_dH = template_HS[0]
+                alignment.template_dS = template_HS[1]
+                alignment.primer_dH = primer_HS[0]
+                alignment.primer_dS = primer_HS[1]
+                alignment.template_dG55 = alignment.template_dH - (T0 + T) * alignment.template_dS
+            }
+        }
+
+    }
+
+    this.get_best_alignment = function(aa, T=55){
+        // aa: an AlternativeAlignments object
+        // T: temperature in Celsius to compute G
+        // note: this method modifies the alignments to add thermodynamic information !!!
+        const T0 = 273.15
+
+        let G_min = 0
+        let G_min_index = -1
+        for (let a_i=0; a_i < aa.alignments.length; a_i++){
+            let alignment = aa.alignments[a_i]
+
+            if (alignment.template_G55 < G_min){
+                G_min = G
+                G_min_index = a_i
+            }
+        }
+        return this.alignments[G_min_index]
+    }
 }

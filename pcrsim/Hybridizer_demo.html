@@ -22,6 +22,8 @@
         <label for="primer_seq">Primer sequence:</label>
         <input type="text" id="primer_seq" value="ATGGCAATGTTCAG"></input>
         <br />
+        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">5</textarea>
+        <br/>
         <input type="button" value="align" onclick="run_search()">
         <br />
         <textarea id="alignment" rows="6" cols="30"></textarea>
@@ -56,9 +58,10 @@ var HYBRIDIZER = new Hybridizer();
 var MY_ALIGNMENT;
 
 run_search = function(){
+    let fudge = document.getElementById("score_tolerance").value
     primer_seq = document.getElementById("primer_seq").value
 
-    alternative_alignments_list = SEARCHER.search_primer(primer_seq)
+    alternative_alignments_list = SEARCHER.search_primer(primer_seq, 'top', fudge=fudge)
     MY_ALIGNMENT = alternative_alignments_list[0].alignments[0] // just take the first one for now
 
     document.getElementById("alignment").value = MY_ALIGNMENT.as_text()
@@ -146,6 +149,13 @@ function init(){
 
 
 <br />
+
+<h3>To Do</h3>
+<ul>
+    <li>Show alternative alignments.</li>
+    <li>Use the best alignment among alternatives according to thermodynamic estimates.</li>
+</ul>
+
 
 
 

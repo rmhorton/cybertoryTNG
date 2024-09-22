@@ -5,19 +5,23 @@ primer: Y defines the rows of the alignment matrix; indexed by j.
 
 NOTES:
 An element in a matrix is indexed by row then column, like M[j][i].
-In normal matrix notation that would be M[i,j]
+In conventional matrix notation that would be M[i,j]
+
+!on't allow spaces past the ends of the primer.
 */
 
 class AlternativeAlignments{
-    constructor(alignment_score){
+    constructor(alignment_score, strand){
         this.alignment_score = alignment_score
+        this.strand = strand
         this.alignments = []
     }
 
-    add_alighment = function(my_alignment){
-        my_alignment.set_alignment_score(this.alignment_score)
+    add_alignment = function(my_alignment){
+        my_alignment.alignment_score = this.alignment_score
         this.alignments.push(my_alignment)
     }
+
 }
     
 class Alignment{
@@ -28,19 +32,30 @@ class Alignment{
         this.B = seqB
         this.template_end = path[0][0]
         this.template_begin = path[path.length - 1][0] + 1
+
+        // will be set by AlternativeAlignments.add_alignment
         this.alignment_score = undefined
+
+        // thermodynamic values to be filled in by Hybridizer.add_aa_thermodynamics
+        this.template_dH = undefined 
+        this.template_dS = undefined
+        this.template_G55 = undefined
+        this.primer_dH = undefined 
+        this.primer_dS = undefined
     }
 
-    set_alignment_score = function(my_alignment_score){
-        this.alignment_score = my_alignment_score
-    }
 
     as_text = function(){
         let spacer = ''
         for (let i in this.A){
             spacer += (this.A[i] == this.B[i]) ? '|' : ' '
         }
-        return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}\n${this.A}\n${spacer}\n${this.B}\n`
+        let thermo_msg = (this.template_dH == undefined)?
+            ''
+            : 
+            ` dG55=${this.template_dG55.toFixed(3)}`;
+            //  template_dH=${this.template_dH.toFixed(3)} template_dS=${this.template_dS.toFixed(3)} primer_dH=${this.primer_dH.toFixed(3)} primer_dS=${this.primer_dS.toFixed(3)}
+        return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}${thermo_msg}\n${this.A}\n${spacer}\n${this.B}\n`
     }
 }
 
@@ -80,7 +95,6 @@ class PrimerSearcher{
         return this.scoring_matrix[y_col][x_row]
     }
 
-
     compute_cell_score = function(i, j) {
         // Calculate value for a given cell in the score matrix.
 
@@ -94,6 +108,15 @@ class PrimerSearcher{
         let score_over = this.dp_matrix[j][i-1] + this.gap_creation_penalty;
 
         return Math.max(score_diag, score_down, score_over);
+    }
+
+    compute_perfect_score = function(primer_seq){
+        let score = 0
+        for (let i=0; i < primer_seq.length; i++){
+            let base = primer_seq[i]
+            score += this.get_pair_score(base, base)
+        }
+        return score
     }
 
     fill_in_dp_matrix = function() {
@@ -121,6 +144,7 @@ class PrimerSearcher{
 
     }
 
+    // not used any more; this was for 
     get_array_max = function(my_array){
         // more scalable than Math.max(...my_array)
         let max_score = 0
@@ -135,9 +159,13 @@ class PrimerSearcher{
     get_starting_cells = function(fudge=0){
         let last_j = this.dp_matrix.length - 1
         let last_row = this.dp_matrix[last_j]
-        let max_score = this.get_array_max(last_row)  // Math.max(...last_row)
+        // let max_score = this.get_array_max(last_row)  // Math.max(...last_row)
+        let max_score = this.compute_perfect_score(this.Y)
         let starting_cells = []
+        
         for (let i=0; i < last_row.length; i++){
+            // Avoid gaps at end of primer (this only handles single gaps)
+            if ( (last_row[i] < last_row[i+1]) | (last_row[i] < last_row[i-1])) continue
             if (last_row[i] >= max_score - fudge){
                 starting_cells.push([i, last_j])
             }
@@ -147,10 +175,16 @@ class PrimerSearcher{
 
 
     traceback = function(path, aa, seqA='', seqB=''){
-        // recursive traversal
-        // path is a list of coordinate pairs, each representing [i,j] coordinates.
-        // Before each recursive call we add to the growing aligned sequences. Note that the sequences are 0 indexed because the DP matrix uses the zero row and column for initial scores, so sequence positions in the matrix are 1 indexed. This means we need to subtract one f
-
+        /* 
+        traceback: recursive traversal of the dynamic programming matrix
+        path: a list of coordinate pairs, each representing [i,j] coordinates.
+        seqA: the aligned template sequence (X) so far
+        seqB: the aligned primer sequence (Y) so far
+        Notes:
+            * Before each recursive call we add to the growing aligned sequences. 
+            * Sequences are 0 indexed but the DP matrix uses the zero row and column for initial scores, so sequence positions in the matrix are 1 indexed. 
+              This means we need to subtract one from the matrix index to find the sequence index.
+        */
         let end_point = path[path.length - 1]
         let i = end_point[0]
         let j = end_point[1]
@@ -159,7 +193,7 @@ class PrimerSearcher{
         if ( (j == 0) || (i == 0) ){
             var my_alignment = new Alignment(path, seqA, seqB) // let or var?
             // aa.alignments.push(my_alignment)
-            aa.add_alighment(my_alignment)
+            aa.add_alignment(my_alignment)
             return
         }
 
@@ -183,7 +217,7 @@ class PrimerSearcher{
             this.traceback(new_path, aa, '-' + seqA, this.Y[j-1] + seqB)
         }
         
-        if ( ( this_score == left_score + this.gap_creation_penalty )) {
+        if ( ( this_score == left_score + this.gap_creation_penalty ) ) {
             let new_path = path.slice()
             new_path.push([i-1, j])
             this.traceback(new_path, aa, this.X[i-1] + seqA, '-' + seqB)
@@ -193,22 +227,26 @@ class PrimerSearcher{
     }
 
     search_primer = function(primer, strand='top', fudge=0){
-        if (strand=='top'){
+        if ( strand=='top' ){
+            console.log('search_primer: top strand')
             this.set_primer(primer)
-        } else {
+        } else if ( strand=='bottom') {
+            console.log('search_primer: bottom strand')
             this.set_primer(this.revcomp(primer))
+        } else {
+            console.log("ERROR!!! Strand not specified")
         }
         
         this.fill_in_dp_matrix()
-        // To Do: one AlternativeAlignments per starting cell
+        
         let starting_cells = this.get_starting_cells(fudge)
-
+        // one AlternativeAlignments per starting cell
         this.alternative_alignments_list = []
         for (let starting_cell of starting_cells){
             let i = starting_cell[0]
             let j = starting_cell[1]
             let alignment_score = this.dp_matrix[j][i]
-            let aa = new AlternativeAlignments(alignment_score)
+            let aa = new AlternativeAlignments(alignment_score, strand)
             this.traceback([starting_cell], aa)
             this.alternative_alignments_list.push(aa)
         }
