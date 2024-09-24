@@ -26,7 +26,7 @@
         <br/>
         <input type="button" value="align" onclick="run_search()">
         <br />
-        <textarea id="alignment" rows="6" cols="30"></textarea>
+        <textarea id="alignment" rows="6" cols="60"></textarea>
         <br />
         <input type="button" value="show hybridization" onclick="run_hybridization()">
         <br />
@@ -61,8 +61,10 @@ run_search = function(){
     let fudge = document.getElementById("score_tolerance").value
     primer_seq = document.getElementById("primer_seq").value
 
-    alternative_alignments_list = SEARCHER.search_primer(primer_seq, 'top', fudge=fudge)
-    MY_ALIGNMENT = alternative_alignments_list[0].alignments[0] // just take the first one for now
+    search_results = SEARCHER.search_primer(primer_seq, 'top', fudge=fudge)
+    HYBRIDIZER.add_aa_list_thermodynamics(search_results)
+    search_results.sort_aas_by_thermodynamic_stability() // sorts the alternatives
+    MY_ALIGNMENT = search_results[0].alignments[0]
 
     document.getElementById("alignment").value = MY_ALIGNMENT.as_text()
 }
@@ -80,7 +82,7 @@ run_hybridization = function(){
 
     HS = HYBRIDIZER.calculate_aligned_sequence_HS(MY_ALIGNMENT.A, MY_ALIGNMENT.B)
 
-    const temperatures = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+    const temperatures = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
     hyb_concentrations = titrate_primer_concentration(conc_primer, conc_template, HS[0], HS[1] + dS_salt, temperatures)
     plotLine(temperatures, hyb_concentrations)
 }
@@ -149,15 +151,6 @@ function init(){
 
 
 <br />
-
-<h3>To Do</h3>
-<ul>
-    <li>Show alternative alignments.</li>
-    <li>Use the best alignment among alternatives according to thermodynamic estimates.</li>
-</ul>
-
-
-
 
 </body>
 </html>

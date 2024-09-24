@@ -39,7 +39,7 @@
     const HIGHLIGHTED_BACKGROUND_COLOR = "yellow"
 
     var SEARCHER = new PrimerSearcher()
-    var HYBRIDIZER = new Hybridizer()  // Comment out if you don't want to add thermodynamic values to alignments
+    var HYBRIDIZER = new Hybridizer()  // used to add thermodynamic values to alignments
 
     run_search =  function(){
         template_seq = document.getElementById("template").value
@@ -55,7 +55,7 @@
             HYBRIDIZER.add_aa_list_thermodynamics(SEARCHER.alternative_alignments_list)
 
         text_output = document.getElementById("text_output")
-        text_output.value = SEARCHER.get_alignments_as_text()
+        text_output.value = SEARCHER.alternative_alignments_list.as_text()
 
         if (document.getElementById("show_dp_matrix").checked)
             show_dp()

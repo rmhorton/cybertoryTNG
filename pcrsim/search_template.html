@@ -12,6 +12,7 @@
     </style>
     </style>
     <script language="javascript" src="PrimerSearcher.js"></script>
+    <script language="javascript" src="Hybridizer.js"></script>
     <!-- script language="javascript" src="toy_template.js"></script -->
     <script language="javascript" src="E_coli_K12.js"></script>
      <script language="javascript">
@@ -29,9 +30,9 @@
         if ( (seq.match(/[ACGT]/g) || []).length < seq.length){
             msg = "primer cannot have nonstandard bases"
         }
-        if (searcher.get_sequence_complexity(seq) < 0.3){
-            msg = "primer complexity is too low"
-        }
+        // if (searcher.get_sequence_complexity(seq) < 0.3){
+        //     msg = "primer complexity is too low"
+        // }
         
         return msg
     }
@@ -52,14 +53,28 @@
 
         let primer_seq = document.getElementById("primer").value.toUpperCase()
         let guardrail_msg = guardrail(primer_seq)
-        if ( guardrail_msg != 'OK'){
+        if ( guardrail_msg != 'OK' ){
             text_output.value = "Primer failed guardrails: " + guardrail_msg
         } else {
+
             let start = new Date()
-            searcher.search_primer(primer_seq, fudge)
+            search_results = searcher.search_primer(primer_seq, strand='top', fudge=fudge)
+            if (document.getElementById("compute_thermodynamic_stability").checked){
+                console.log("computing thermodynamic stability!")
+                var HYBRIDIZER = new Hybridizer()
+                HYBRIDIZER.add_aa_list_thermodynamics(search_results)
+            }
+            if (document.getElementById("sort_by_stability").checked){
+                if (document.getElementById("compute_thermodynamic_stability").checked){
+                    search_results.sort_aas_by_thermodynamic_stability()
+                } else {
+                    text_output.value = "You must compute thermodynamic stability before sorting by stability."
+                    return
+                }
+            }
             let finish = new Date()
             let elapsed_miliseconds = finish - start
-            text_output.value = searcher.get_alignments_as_text()
+            text_output.value = search_results.as_text()
             let time_elapsed_msg = `The search for this ${primer_seq.length} bp sequence took ${elapsed_miliseconds/1000} seconds.`
             document.getElementById("elapsed_time_div").innerHTML = time_elapsed_msg
         }
@@ -75,11 +90,14 @@
 
     <form>
         <p>
-        Primer (5-50 bases): <textarea id="primer" rows="1" cols="50">ATGGCAATGTTCAGCGTTTCTGGTCCGGGGATGAAAGGGATGGTCGGCAT</textarea>
+        Primer (5-50 bases): <textarea id="primer" rows="1" cols="50">ATGTTCAGCGTTTCTGGTC</textarea>
+        <!-- ATGGCAATGTTCAGCGTTTCTGGTCCGGGGATGAAAGGGATGGTCGGCAT -->
         <input type="button" value="reverse complement"
         onClick="document.getElementById('primer').value = searcher.revcomp(document.getElementById('primer').value);">
         <br/>
-        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">0</textarea>
+        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">10</textarea>
+        <input type="checkbox" id="compute_thermodynamic_stability" checked /> compute thermodynamic stability
+        <input type="checkbox" id="sort_by_stability" checked /> sort by stability
         </p>
         <br />
 

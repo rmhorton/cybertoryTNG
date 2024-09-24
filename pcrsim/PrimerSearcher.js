@@ -10,20 +10,6 @@ In conventional matrix notation that would be M[i,j]
 !on't allow spaces past the ends of the primer.
 */
 
-class AlternativeAlignments{
-    constructor(alignment_score, strand){
-        this.alignment_score = alignment_score
-        this.strand = strand
-        this.alignments = []
-    }
-
-    add_alignment = function(my_alignment){
-        my_alignment.alignment_score = this.alignment_score
-        this.alignments.push(my_alignment)
-    }
-
-}
-    
 class Alignment{
     
     constructor(path, seqA, seqB){
@@ -39,9 +25,10 @@ class Alignment{
         // thermodynamic values to be filled in by Hybridizer.add_aa_thermodynamics
         this.template_dH = undefined 
         this.template_dS = undefined
-        this.template_G55 = undefined
+        this.template_dG55 = undefined
         this.primer_dH = undefined 
         this.primer_dS = undefined
+        this.is_best_alternative = false
     }
 
 
@@ -55,16 +42,99 @@ class Alignment{
             : 
             ` dG55=${this.template_dG55.toFixed(3)}`;
             //  template_dH=${this.template_dH.toFixed(3)} template_dS=${this.template_dS.toFixed(3)} primer_dH=${this.primer_dH.toFixed(3)} primer_dS=${this.primer_dS.toFixed(3)}
+        if (this.is_best_alternative){
+            thermo_msg += ' *** Best Alternative ***'
+        }
+
         return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}${thermo_msg}\n${this.A}\n${spacer}\n${this.B}\n`
     }
 }
 
+class AlternativeAlignments{
+    constructor(alignment_score, strand){
+        this.alignment_score = alignment_score
+        this.strand = strand
+        this.alignments = []
+    }
+
+    add_alignment = function(my_alignment){
+        my_alignment.alignment_score = this.alignment_score
+        this.alignments.push(my_alignment)
+    }
+
+    sort_alignments_by_thermodynamic_stability = function(){
+         // Sort all the alternatives by binding stability.
+         // This only works if the if the thermodynamic properties have been computed by Hybridizer. Otherwise returns nothing.
+
+        // Do alignments have thermodynamic attributes?
+        if (this.alignments[0].template_dH != undefined){
+            function compare_alignments(a,b) {
+                if (a.template_dG55 < b.template_dG55)
+                    return -1;
+                if (a.template_dG55 > b.template_dG55)
+                    return 1;
+                return 0;
+            }
+            this.alignments = this.alignments.sort(compare_alignments)
+        }
+
+    }
+
+    get_best_alignment = function(){
+        // Return the most thermodynamically stable alignment from a set of alternative alignments.
+        // If there are ties it just returns the first one.
+        // If thermodynamic properties have not been calculated by Hybridizer.add_aa_list_thermodynamics(), returns nothing.
+        for (let alignment of this.alignments){
+            if (alignment.is_best_alternative) return alignment
+        }
+    }
+
+}
+    
+class AlternativeAlignmentsList extends Array{ // should be called AlternativeAlignmentsArray, to be consistent with Javascript notation.
+    constructor(...args) {
+        super(...args);
+    }
+
+    sort_aas_by_thermodynamic_stability = function(){
+        if (this[0].alignments[0].template_dH != undefined){
+ 
+            // sort each set of alternative alignments
+            for (let aa of this){
+                aa.sort_alignments_by_thermodynamic_stability()
+            }
+
+            // sort the list of alternative alignments
+           function compare_aas(a,b) {
+                if (a.alignments[0].template_dG55 < b.alignments[0].template_dG55)
+                    return -1;
+                if (a.alignments[0].template_dG55 > b.alignments[0].template_dG55)
+                    return 1;
+                return 0;
+            }
+            this.sort(compare_aas)
+        }
+    }
+
+    as_text = function(){
+        let alignments_text = "Alignments:\n"
+        // this.alternative_alignments_list.sort_aas_by_thermodynamic_stability()
+        for (let aa of this){
+            // aa.sort_alignments_by_thermodynamic_stability()
+            for (let alignment of aa.alignments){
+                alignments_text += '\n' + alignment.as_text()
+            }
+            alignments_text += '\n===\n'
+        }
+        return alignments_text
+    }
+}
 class PrimerSearcher{
 
     constructor(template=''){
         this.X = template
         this.Y = ""  // primer
-        this.alternative_alignments_list = []
+        this.alternative_alignments_list = new AlternativeAlignmentsList()  // reiniitialized by search_primer()
 
         this.gap_creation_penalty = -3
 
@@ -241,7 +311,7 @@ class PrimerSearcher{
         
         let starting_cells = this.get_starting_cells(fudge)
         // one AlternativeAlignments per starting cell
-        this.alternative_alignments_list = []
+        this.alternative_alignments_list = new AlternativeAlignmentsList()
         for (let starting_cell of starting_cells){
             let i = starting_cell[0]
             let j = starting_cell[1]
@@ -251,17 +321,6 @@ class PrimerSearcher{
             this.alternative_alignments_list.push(aa)
         }
         return this.alternative_alignments_list
-    }
-
-    get_alignments_as_text = function(){
-        let alignments_text = "Alignments:\n"
-        for (let aa of this.alternative_alignments_list){
-            for (let alignment of aa.alignments){
-                alignments_text += '\n' + alignment.as_text()
-            }
-            alignments_text += '\n===\n'
-        }
-        return alignments_text
     }
 
     // guardrail functions
