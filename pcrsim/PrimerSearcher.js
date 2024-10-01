@@ -14,8 +14,8 @@ class Alignment{
     
     constructor(path, seqA, seqB){
         this.path=path
-        this.A = seqA
-        this.B = seqB
+        this.A = seqA  // template
+        this.B = seqB  // primer
         this.template_end = path[0][0]
         this.template_begin = path[path.length - 1][0] + 1
 
@@ -91,13 +91,15 @@ class AlternativeAlignments{
 
 }
     
-class AlternativeAlignmentsList extends Array{ // should be called AlternativeAlignmentsArray, to be consistent with Javascript notation.
+class AlternativeAlignmentsList extends Array{ 
+    // This is the class returned by PrimerSearcher.search_primer()
+    // should be called AlternativeAlignmentsArray, to be consistent with Javascript notation.
     constructor(...args) {
         super(...args);
     }
 
     sort_aas_by_thermodynamic_stability = function(){
-        if (this[0].alignments[0].template_dH != undefined){
+        // if ( (this.length > 0) & (this[0].alignments[0].template_dH != undefined) ){
  
             // sort each set of alternative alignments
             for (let aa of this){
@@ -113,7 +115,7 @@ class AlternativeAlignmentsList extends Array{ // should be called AlternativeAl
                 return 0;
             }
             this.sort(compare_aas)
-        }
+        // }
     }
 
     as_text = function(){
@@ -129,6 +131,7 @@ class AlternativeAlignmentsList extends Array{ // should be called AlternativeAl
         return alignments_text
     }
 }
+
 class PrimerSearcher{
 
     constructor(template=''){
@@ -149,6 +152,22 @@ class PrimerSearcher{
         this.dp_matrix = [] // dynamic programming matrix
     }
 
+    /**
+     * Returns a hash code from a string
+     * @param  {String} str The string to hash.
+     * @return {Number}    A 32bit integer
+     * @see http://werxltd.com/wp/2010/05/13/javascript-implementation-of-javas-string-hashcode-method/
+     *   or https://stackoverflow.com/questions/6122571/simple-non-secure-hash-function-for-javascript
+     */
+    hashCode = function(str) {
+        let hash = 0;
+        for (let i = 0, len = str.length; i < len; i++) {
+            let chr = str.charCodeAt(i);
+            hash = (hash << 5) - hash + chr;
+            hash |= 0; // Convert to 32bit integer (signed)
+        }
+        return (hash >>> 0).toString(16); // convert to unsigned, then to hex
+    }
 
     set_template = function(template_seq) {
         this.X = template_seq
@@ -304,7 +323,7 @@ class PrimerSearcher{
             console.log('search_primer: bottom strand')
             this.set_primer(this.revcomp(primer))
         } else {
-            console.log("ERROR!!! Strand not specified")
+            throw new Error(`ERROR!!! Strand "${strand}" invalid`)
         }
         
         this.fill_in_dp_matrix()
@@ -320,6 +339,7 @@ class PrimerSearcher{
             this.traceback([starting_cell], aa)
             this.alternative_alignments_list.push(aa)
         }
+        console.log(`sites found: ${starting_cells.length}`)
         return this.alternative_alignments_list
     }
 

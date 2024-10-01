@@ -5,13 +5,16 @@
     <body onload="load_svg()">
         <script language="javascript">
             let marker_mobilities = [546, 521.6, 498.3, 476, 454.6, 434.1, 414.4, 395.4, 377.1, 359.4, 342.3, 325.7, 309.7, 294.2, 279.1, 264.5, 250.2, 236.4, 222.9, 209.7, 196.9, 184.4, 172.2, 160.3, 148.6, 137.2, 126.1, 115.2, 104.5, 94]
-            add_marker_band = function(mobility){ return {"mobility": mobility, "height": 8} }
+            add_marker_band = function(mobility){ return {"mobility": mobility, "bandHeight": 8} }
             
             let my_gel_data = [
-                marker_mobilities.map(add_marker_band),
-                [{"mobility": 414.4, "height": 3.68},{"mobility": 294.2, "height": 6.08}],
-                [{"mobility": 294.2, "height": 10.72}],
-                [{"mobility": 294.2, "height": 10.72}]
+                // marker_mobilities.map(add_marker_band),
+                //[{"mobility": 414.4, "bandHeight": 3.68},{"mobility": 294.2, "bandHeight": 6.08}],
+                [{"mobility": 294.2, "bandHeight": 10}],
+                [{"mobility": 294.2, "bandHeight": 20}],
+                [{"mobility": 294.2, "bandHeight": 30}]//,
+                //[{"mobility": 414.4, "bandHeight": 3.68},{"mobility": 294.2, "bandHeight": 6.08}],
+                //[{"mobility": 294.2, "bandHeight": 10.72}]
             ]
 
             load_svg = function(){
@@ -54,11 +57,12 @@
             }
             
             function moveBands (targetTime){
-                for (var i = 0; i < Lanes.length; i++){
-                    for (var j = 0; j < Lanes[i].length; j++){
-                        var mobility = Lanes[i][j].getAttribute("mobility");
-                        var distance = targetTime * mobility - Lanes[i][j].getAttribute("bandHeight") * 0.75;	// adjust for peak of bandShape
-                        Lanes[i][j].setAttribute ("transform", "translate(0, " + distance + ")");
+                for (var lane_number = 0; lane_number < Lanes.length; lane_number++){
+                    for (var band_number = 0; band_number < Lanes[lane_number].length; band_number++){
+                        let my_bandheight = Lanes[lane_number][band_number].getAttribute("bandheight")
+                        var mobility = Lanes[lane_number][band_number].getAttribute("mobility");
+                        var distance = targetTime * mobility - my_bandheight * 0.75;	// adjust for peak of bandShape
+                        Lanes[lane_number][band_number].setAttribute ("transform", "translate(0, " + distance + ")");
                     }
                 }
             }
@@ -94,9 +98,10 @@
             }
 
             get_band_svg = function(band){
+                // It looks like svg elements have case-insensitive attribute names (?) 'bandheight'
                 return `
-                            <g mobility="${band['mobility']}" bandHeight="${band['height']}">
-                                <use xlink:href="#bandShape" transform="scale(1.0,${band['height']/16})"/>
+                            <g mobility="${band['mobility']}" bandheight="${band['bandHeight']}">
+                                <use xlink:href="#bandShape" transform="scale(1.0,${band['bandHeight']/16})"/>
                             </g>
                 `
             }
