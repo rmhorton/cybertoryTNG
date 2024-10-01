@@ -185,7 +185,8 @@ function Hybridizer(){
         // if (Mg_conc > 8) Mg_conc = 8
         // if (Mg_conc < 0.1) Mg_conc = 0.1
         // if (K_conc < 5) K_conc = 5
-        salt_conc = K_conc * 1e-3 + 3.795 * Math.sqrt(Mg_conc * 1e-3)
+        magnitude = 1e-3 
+        salt_conc = K_conc * magnitude + 3.795 * Math.sqrt(Mg_conc * magnitude)
         // salt_conc: equivalent monovalent salt concentration in mM
         S_salt_adjustment = 0.368 * (N - 1) * Math.log(salt_conc)
         return S_salt_adjustment

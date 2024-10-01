@@ -13,35 +13,6 @@
 <script language="javascript" src="Hybridizer.js"></script>
 <script language="javascript" src="PrimerSearcher.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
-<body>
-    <form id="controls">
-
-        Template sequence:<br />
-        <div id="template" class="sequence"></div><br />
-        <br />
-        <label for="primer_seq">Primer sequence:</label>
-        <input type="text" id="primer_seq" value="ATGGCAATGTTCAG"></input>
-        <br />
-        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">5</textarea>
-        <br/>
-        <input type="button" value="align" onclick="run_search()">
-        <br />
-        <textarea id="alignment" rows="6" cols="60"></textarea>
-        <br />
-        <input type="button" value="show hybridization" onclick="run_hybridization()">
-        <br />
-       
-        <label for="primer_conc">Primer concentration (uM):</label>
-        <input type="text" id="primer_conc" value="1" onchange="run_hybridization()"></input>
-        <label for="template_conc">Template concentration (uM):</label>
-        <input type="text" id="template_conc" value="0.000001" onchange="run_hybridization()"></input><br />
-        <label for="K_control">Potassium (mM):</label>
-        0<input type="range" min="0" max="100" value="50" class="slider" id="Mg_conc" onchange="run_hybridization()">100<br />
-        <label for="Mg_control">Magnesium (mM):</label>
-        0<input type="range" min="0" max="8" value="1" class="slider" id="K_conc" onchange="run_hybridization()">8<br />
-        
-    </form>
-<canvas id="myChart" style="width:100%;max-width:600px"></canvas>
 
 <script>
 
@@ -148,6 +119,35 @@ function init(){
 
 </script>
 
+<body>
+    <form id="controls">
+
+        Template sequence:<br />
+        <div id="template" class="sequence"></div><br />
+        <br />
+        <label for="primer_seq">Primer sequence:</label>
+        <input type="text" id="primer_seq" value="ATGGCAATGTTCAGCGTTT"></input>
+        <br />
+        score tolerance: <textarea id="score_tolerance" rows="1" cols="3">5</textarea>
+        <br/>
+        <input type="button" value="align" onclick="run_search()">
+        <br />
+        <textarea id="alignment" rows="6" cols="60"></textarea>
+        <br />
+        <input type="button" value="show hybridization" onclick="run_hybridization()">
+        <br />
+       
+        <label for="primer_conc">Primer concentration (uM):</label>
+        <input type="text" id="primer_conc" value="1" onchange="run_hybridization()"></input>
+        <label for="template_conc">Template concentration (uM):</label>
+        <input type="text" id="template_conc" value="0.000001" onchange="run_hybridization()"></input><br />
+        <label for="K_control">Potassium (mM):</label>
+        0<input type="range" min="0.1" max="500" value="1" class="slider" id="Mg_conc" onchange="run_hybridization()">50<br />
+        <label for="Mg_control">Magnesium (mM):</label>
+        0<input type="range" min="0" max="8" value="0.1" class="slider" id="K_conc" onchange="run_hybridization()">8<br />
+        
+    </form>
+    <canvas id="myChart" style="width:100%;max-width:600px"></canvas>
 
 
 <br />
