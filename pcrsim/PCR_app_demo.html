@@ -13,7 +13,7 @@
             var HYBRIDIZER = new Hybridizer();
             
             go = function(){
-                document.getElementById("status_div").value = "<b>Running...</b>"
+                document.getElementById("status_div").innerHTML = "<b>Running...</b>"
                 window.setTimeout(run_PCR_reactions, 1)
             }
             
@@ -29,25 +29,25 @@
 
                 let soln1 = new Solution('soln1', volume=10)
                 soln1.add_ingredient(my_template, 1e-12)
-                soln1.add_ingredient(primerA, 1e-7)  // 1e-6
-                soln1.add_ingredient(primerB, 1e-7)
+                soln1.add_ingredient(primerA, 1e-6)
+                soln1.add_ingredient(primerB, 1e-6)
                 
                 let my_pcr = new PCR(soln1)
                 my_pcr.find_template_primer_binding_sites(fudge=10)  // this is slow, so we want to be able to re-use the results
                 my_pcr.find_potential_products()
 
                 pcr1_cycles = document.getElementById("pcr1_cycles").value
-                pcr1_anneal = document.getElementById("pcr1_anneal").value
+                pcr1_anneal = 55  // document.getElementById("pcr1_anneal").value
                 my_pcr.run(num_cycles=pcr1_cycles, denaturationTemp=98, annealingTemp=pcr1_anneal)  // run resets the features, so we can do multiple independant runs on the same PCR object.
                 lane1 = my_pcr.get_bands()
 
                 pcr2_cycles = document.getElementById("pcr2_cycles").value
-                pcr2_anneal = document.getElementById("pcr2_anneal").value
+                pcr2_anneal = 55 // document.getElementById("pcr2_anneal").value
                 my_pcr.run(num_cycles=pcr2_cycles, denaturationTemp=98, annealingTemp=pcr2_anneal)
                 lane2 = my_pcr.get_bands()
 
                 pcr3_cycles = document.getElementById("pcr3_cycles").value
-                pcr3_anneal = document.getElementById("pcr3_anneal").value
+                pcr3_anneal = 55 // document.getElementById("pcr3_anneal").value
                 my_pcr.run(num_cycles=pcr3_cycles, denaturationTemp=98, annealingTemp=pcr3_anneal)
                 lane3 = my_pcr.get_bands()
 
@@ -57,14 +57,16 @@
                     return -240 + 810 * Math.exp(-size/gamma)
                 }
 
-                band_height = function(quantity){
-                    return 100 * Math.sqrt(2*quantity)  // WAG
+                band_height = function(conc, size){
+                    return 500 * Math.sqrt(conc * size)  // WAG
                 }
                 
                 let marker_molecules = []
-                for (let i=1; i<=30; i++) marker_molecules.push({"size": i * 100, "quantity":1e-3})
+                for (let i=1; i<=30; i++){
+                    marker_molecules.push({"size": i * 100, "quantity":(5e-4)/(i*100)})  // quantity in mol
+                }
                 to_gel_band = function(sqobj){ 
-                    my_height = band_height(sqobj.quantity)
+                    my_height = band_height(sqobj.quantity, sqobj.size)
                     return {"mobility": mobility(sqobj.size), "height": my_height} 
                 }
 
@@ -230,16 +232,16 @@
             Primer B: <textarea id="primerB" rows="1" cols="30">ATCGGTATTGAACAGCAT</textarea> <br />
 
             <h4>PCR1</h4>
-            cycles: <input id="pcr1_cycles" type="text" size="4" value="30" />
-            annealing temperature: <input id="pcr1_anneal" type="text" size="4" value="55" />
+            cycles: <input id="pcr1_cycles" type="text" size="4" value="25" />
+            <!-- annealing temperature: <input id="pcr1_anneal" type="text" size="4" value="55" /> -->
             <br />
             <h4>PCR2</h4>
             cycles: <input id="pcr2_cycles" type="text" size="4" value="30" />
-            annealing temperature: <input id="pcr2_anneal" type="text" size="4" value="65" />
+            <!-- annealing temperature: <input id="pcr2_anneal" type="text" size="4" value="65" /> -->
             <br />
             <h4>PCR3</h4>
-            cycles: <input id="pcr3_cycles" type="text" size="4" value="30" />
-            annealing temperature: <input id="pcr3_anneal" type="text" size="4" value="75" />
+            cycles: <input id="pcr3_cycles" type="text" size="4" value="50" />
+            <!-- annealing temperature: <input id="pcr3_anneal" type="text" size="4" value="75" /> -->
             <br />
             <input type="button" value="run PCRs" onclick="go()" />
             <div id="status_div">&nbsp;</div>

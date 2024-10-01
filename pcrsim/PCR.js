@@ -84,6 +84,11 @@ class Solution{
         return primer_conc
     }
 
+    get_dna_polymerase_activity(){
+        // placeholder: should compute based on solution contents and history
+        return 100
+    }
+
     // TO DO: set_primer_concentrations. Also [dNTP]s someday
     /* These are not right
     get_ingredient_concentration = function(primer_id){
@@ -218,12 +223,11 @@ class PCR{
         for (let pp of this.potential_products){
             pp.init()
         }
-        let polymerase_activity = 100  // !!! should be computed from pcr.solution
-        let polymerase_survival_per_cycle = 0.99 // !!! should be a function of time at denaturationTemp
+        let polymerase_activity = this.solution.get_dna_polymerase_activity()
+        let polymerase_survival_per_cycle = 0.94 // !!! should be a function of time at denaturationTemp
         for (let cycle_number=0; cycle_number < num_cycles; cycle_number++){
             for (let pp of this.potential_products){
-                let nonprocessivity_penalty = 0.00001  // should depend on template sequence, maybe also [dNTP], extension_temperature, etc.
-                pp.cycle(denaturationTemp, annealingTemp, polymerase_activity, nonprocessivity_penalty);
+                pp.cycle(denaturationTemp, annealingTemp, polymerase_activity);
             }
             polymerase_activity *= polymerase_survival_per_cycle;
         }
@@ -352,9 +356,11 @@ class PotentialProduct{
         return targetConc * bound_fraction
 	}
 
-    cycle = function(denaturationTemp, annealingTemp, polymeraseActivity, nonprocessivityPenalty){
+    cycle = function(denaturationTemp, annealingTemp, polymeraseActivity){
 		let extensionEfficiency = polymeraseActivity/100
-		// extensionEfficiency *= (1 - (nonprocessivityPenalty * this.get_size()) ) ??? way too harsh; easily goes negative.
+        let nonprocessivityPenalty = 1e-4 * this.get_size()  // !!! this can go negative!!!
+        if (nonprocessivityPenalty < 0) nonprocessivityPenalty = 0
+		extensionEfficiency *= 1 - nonprocessivityPenalty
 
 		// adjust quantity of template strands for how well they denatured.
 		let topConc = this.concOOtop + this.concAOtop + this.concABtop
