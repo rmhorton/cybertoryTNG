@@ -31,12 +31,16 @@ class Alignment{
         this.is_best_alternative = false
     }
 
-
-    as_text = function(){
+    get_spacer = function(){
         let spacer = ''
         for (let i in this.A){
             spacer += (this.A[i] == this.B[i]) ? '|' : ' '
         }
+        return spacer
+    }
+
+    as_text = function(){
+        let spacer = this.get_spacer()
         let thermo_msg = (this.template_dH == undefined)?
             ''
             : 
@@ -47,6 +51,23 @@ class Alignment{
         }
 
         return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}${thermo_msg}\n${this.A}\n${spacer}\n${this.B}\n`
+    }
+
+    as_json = function(){
+        // let basic_attributes = ['template_begin', 'template_end', 'alignment_score', 'A', 'B']
+        // for (let attrib in basic_attributes){
+        //     my_dict[attrib] = this[attrib]
+        // }
+
+        let my_dict = {
+            'template_begin': this.template_begin,
+            'template_end': this.template_end,
+            'alignment_score': this.alignment_score,
+            'A': this.A,
+            'B': this.B
+        }
+
+        return(JSON.stringify(my_dict))
     }
 }
 
@@ -130,12 +151,37 @@ class AlternativeAlignmentsList extends Array{
         }
         return alignments_text
     }
+
+    // Converting an object to a JSON string and back is an old fashioned way of cloning an object in Javascript.
+    // I cache the JSON strings.
+    to_json = function(){
+        JSON.stringify(this)
+    }
+    /* ??? Should I store the parsed data object? Will this be easier to load from a configuration file?
+    from_json = function(json_str){
+        aal_obj = new AlternativeAlignmentsList()
+        let aal_data = JSON.parse(json_str)
+        for (let aa_data in aal_data){
+            alignments_score
+            strand
+            for (a in aa_data.alignments){
+
+            }
+        }
+        return aal_obj
+    }
+    */
 }
 
 class PrimerSearcher{
 
-    constructor(template=''){
-        this.X = template
+    /* This class assumes the presence of some global variables:
+    *    TEMPLATES: a dictionary where keys = genbank accession number and value = sequence
+    *    HYBRIDIZER: A Hybridizer object.
+    */
+
+    constructor(){
+        this.X = ""  //template
         this.Y = ""  // primer
         this.alternative_alignments_list = new AlternativeAlignmentsList()  // reiniitialized by search_primer()
 
@@ -150,6 +196,8 @@ class PrimerSearcher{
         ]
 
         this.dp_matrix = [] // dynamic programming matrix
+
+        this.cache = {} // key = template_id::primer_seq, value = AlternativeAlignmentsList
     }
 
     /**
@@ -280,7 +328,7 @@ class PrimerSearcher{
 
         // base case
         if ( (j == 0) || (i == 0) ){
-            var my_alignment = new Alignment(path, seqA, seqB) // let or var?
+            let my_alignment = new Alignment(path, seqA, seqB) // let or var?
             // aa.alignments.push(my_alignment)
             aa.add_alignment(my_alignment)
             return
@@ -315,32 +363,40 @@ class PrimerSearcher{
 
     }
 
-    search_primer = function(primer, strand='top', fudge=0){
-        if ( strand=='top' ){
-            console.log('search_primer: top strand')
-            this.set_primer(primer)
-        } else if ( strand=='bottom') {
-            console.log('search_primer: bottom strand')
-            this.set_primer(this.revcomp(primer))
-        } else {
-            throw new Error(`ERROR!!! Strand "${strand}" invalid`)
-        }
-        
-        this.fill_in_dp_matrix()
-        
-        let starting_cells = this.get_starting_cells(fudge)
-        // one AlternativeAlignments per starting cell
-        this.alternative_alignments_list = new AlternativeAlignmentsList()
-        for (let starting_cell of starting_cells){
-            let i = starting_cell[0]
-            let j = starting_cell[1]
-            let alignment_score = this.dp_matrix[j][i]
-            let aa = new AlternativeAlignments(alignment_score, strand)
-            this.traceback([starting_cell], aa)
-            this.alternative_alignments_list.push(aa)
-        }
-        console.log(`sites found: ${starting_cells.length}`)
-        return this.alternative_alignments_list
+    search_primer = function(template_id, primer, strand='top', fudge=0){
+        let cache_key = `${template_id}::${primer}`
+        // if ( cache_key in this.cache ){
+        //     return AlternativeAlignmentsList.from_json(this.cache[cache_key])
+        // } else {
+            this.set_template(TEMPLATES[template_id])
+
+            if ( strand=='top' ){
+                console.log('search_primer: top strand')
+                this.set_primer(primer)
+            } else if ( strand=='bottom') {
+                console.log('search_primer: bottom strand')
+                this.set_primer(this.revcomp(primer))
+            } else {
+                throw new Error(`ERROR!!! Strand "${strand}" invalid`)
+            }
+            
+            this.fill_in_dp_matrix()
+            
+            let starting_cells = this.get_starting_cells(fudge)
+            // one AlternativeAlignments per starting cell
+            this.alternative_alignments_list = new AlternativeAlignmentsList()
+            for (let starting_cell of starting_cells){
+                let i = starting_cell[0]
+                let j = starting_cell[1]
+                let alignment_score = this.dp_matrix[j][i]
+                let aa = new AlternativeAlignments(alignment_score, strand)
+                this.traceback([starting_cell], aa)
+                this.alternative_alignments_list.push(aa)
+            }
+            console.log(`sites found: ${starting_cells.length}`)
+            this.cache[cache_key] = JSON.stringify(this.alternative_alignments_list)
+            return this.alternative_alignments_list
+        // }
     }
 
     // guardrail functions

@@ -21,6 +21,10 @@ class DnaMolecule extends Ingredient {
         // if id == sequence, it is a primer; otherwise, it could be a template.
         return this.id == this.sequence
     }
+
+    is_template = function(){
+        return(this.id in TEMPLATES)
+    }
 }
 
 
@@ -52,7 +56,7 @@ class Solution{
         let templates = []
         for (let iq of this.ingredient_quantities){
             let ingredient = iq['ingredient']
-            if ( (ingredient.type == 'DnaMolecule') && (!ingredient.is_primer())){
+            if ( (ingredient.type == 'DnaMolecule') && (ingredient.is_template())){
                 templates.push(iq)
             }
         }
@@ -178,8 +182,11 @@ class PCR{
         let templates = this.solution.get_templates()
         let primers = this.solution.get_primers()
 
+        let my_searcher = new PrimerSearcher()
+
         for (let template_iq of templates){
-            let my_searcher = new PrimerSearcher(template_iq['ingredient']['sequence'])
+            // let my_searcher = new PrimerSearcher(template_iq['ingredient']['sequence'])
+            let template_id = template_iq.ingredient.id
             let my_tpbs = new TemplatePrimerBindingSites(template_iq)  // ['ingredient']['id']
             for (let primer_iq of primers){
                 let primer_seq = primer_iq['ingredient']['sequence']
@@ -188,7 +195,7 @@ class PCR{
 
                 // search top strand
                 for (let strand_tb of ['top', 'bottom']){
-                    let aa_list = my_searcher.search_primer(primer_seq, strand_tb, fudge=fudge)  // !!! TO DO: cache this on PrimerSearcher
+                    let aa_list = my_searcher.search_primer(template_id, primer_seq, strand_tb, fudge=fudge)  // !!! TO DO: cache this on PrimerSearcher
                     let new_pbs_list = this.alternative_alignments_to_pbs_list(aa_list, primer_iq, template_iq, strand_tb)
                     my_tpbs.strand[strand_tb].push(...new_pbs_list)
                 }
@@ -211,7 +218,6 @@ class PCR{
                         my_pp.init() // adds thermodynamic features
                         this.potential_products.push( my_pp )
                     }
-
                 }
             }
         }
