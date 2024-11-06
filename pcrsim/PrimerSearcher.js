@@ -392,7 +392,7 @@ class PrimerSearcher{
         let cache_key = `${template_id}::${primer}::${strand}::${fudge}`
         console.log(`searching for "${cache_key}"`)
         if ( cache_key in this.cache ){
-            console.log(`cache hit for "${cache_key}"`)
+            console.log("cache hit!")
             return this.cache[cache_key]
         } else {
             this.set_template(TEMPLATES[template_id])

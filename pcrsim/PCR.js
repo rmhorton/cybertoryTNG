@@ -223,10 +223,16 @@ class PCR{
     }
 
     run = function(num_cycles, denaturationTemp, annealingTemp){
-        // (re)initializes all potential products and (re)runs a PCR
+        // run searches (uses SEARCHER.cache)
+        this.find_template_primer_binding_sites()
+        this.find_potential_products()
+
+        // initialize all potential products
         for (let pp of this.potential_products){
             pp.init()
         }
+
+        // run PCR
         let polymerase_activity = this.solution.get_dna_polymerase_activity()
         let polymerase_survival_per_cycle = 0.94 // !!! should be a function of time at denaturationTemp
         for (let cycle_number=0; cycle_number < num_cycles; cycle_number++){
@@ -237,7 +243,7 @@ class PCR{
         }
     }
 
-    get_bands = function(sample_volume=10){
+    get_band_data = function(sample_volume=10){
         // sample_volume: volume of reaction solution loaded onto gel, in ul
         let band_data = []
         for (let pp of this.potential_products){
