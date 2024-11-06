@@ -63,16 +63,12 @@
                 pcr3_cycles = document.getElementById("pcr3_cycles").value
                 pcr3_anneal = 55 // document.getElementById("pcr3_anneal").value
                 my_pcr3.run(num_cycles=pcr3_cycles, denaturationTemp=98, annealingTemp=pcr3_anneal)
-                
-                lane1 = my_pcr1.get_band_data()
-                lane2 = my_pcr2.get_band_data()
-                lane3 = my_pcr3.get_band_data()
 
                 lanes_data = [
                     GEL.create_marker_band_data(100, 20),
-                    lane1,
-                    lane2,
-                    lane3
+                    my_pcr1.get_band_data(),
+                    my_pcr2.get_band_data(),
+                    my_pcr3.get_band_data()
                 ]
                 
                 GEL_DATA = lanes_data.map(bands_data => { return bands_data.map(to_gel_band) })

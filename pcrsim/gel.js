@@ -168,6 +168,8 @@ class Gel{
     }
 
     load_svg = function(my_gel_data){
+        this.time = 0;
+        this.step = 0.005;
         document.getElementById("gel_display").innerHTML = this.get_svg(my_gel_data)
         this.init_gel()
     }
