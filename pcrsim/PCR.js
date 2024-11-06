@@ -182,8 +182,6 @@ class PCR{
         let templates = this.solution.get_templates()
         let primers = this.solution.get_primers()
 
-        let my_searcher = new PrimerSearcher()
-
         for (let template_iq of templates){
             // let my_searcher = new PrimerSearcher(template_iq['ingredient']['sequence'])
             let template_id = template_iq.ingredient.id
@@ -195,7 +193,7 @@ class PCR{
 
                 // search top strand
                 for (let strand_tb of ['top', 'bottom']){
-                    let aa_list = my_searcher.search_primer(template_id, primer_seq, strand_tb, fudge=fudge)  // !!! TO DO: cache this on PrimerSearcher
+                    let aa_list = SEARCHER.search_primer(template_id, primer_seq, strand_tb, fudge=fudge)
                     let new_pbs_list = this.alternative_alignments_to_pbs_list(aa_list, primer_iq, template_iq, strand_tb)
                     my_tpbs.strand[strand_tb].push(...new_pbs_list)
                 }
