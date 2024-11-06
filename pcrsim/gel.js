@@ -1,19 +1,19 @@
-load_svg = function(my_gel_data){
-    document.getElementById("gel_display").innerHTML = GEL.get_svg(my_gel_data)
-    init_gel()
-}
 
-create_marker_band_data = function(ladder_spacing=100, num_bands=30){
-    let marker_molecules = []
-    for (let i=1; i<=num_bands; i++){
-        band_size = i * ladder_spacing
-        marker_molecules.push({"size": band_size, "quantity":(5e-4)/band_size})  // quantity in mol
-    }
-    return marker_molecules
-}
 
+
+// To Do: move this into the Gel object, probably by mapping it over the band size and quantity data
+// Object.keys(myObject).forEach(function(key, index) { myObject[key] *= 2})
+
+// gel_data_to_bands = function(gel_data){
+//     bands_data = []
+//     for (let key in Object.keys(gel_data)){
+//         bands_dict[key] = gel_data[key].map(to_gel_band)
+//     }
+//     return bands_data
+// }
 
 to_gel_band = function(band_data){
+    // To Do: mobility should depend on gel agarose concentration (maybe band_height should too).
     mobility = function(size, gamma=3400){
         // https://pubmed.ncbi.nlm.nih.gov/11824615/
         return -240 + 810 * Math.exp(-size/gamma)
@@ -22,60 +22,22 @@ to_gel_band = function(band_data){
     band_height = function(conc, size){
         return 500 * Math.sqrt(conc * size)  // WAG
     }
-    my_height = band_height(band_data.quantity, band_data.size)
-    return {"mobility": mobility(band_data.size), "height": my_height} 
+
+    return {"mobility": mobility(band_data.size), "height": band_height(band_data.quantity, band_data.size)} 
 }
 
-var time_limit = 1;
-var time = 0;
-var step = 0.005;
-
-var Lanes = new Array();
-
-// animation functions
-function init_gel(){
-    var gelChildren = document.getElementById("gel").childNodes;
-    for ( var i=0; i < gelChildren.length; i++){
-        if ( 1 == gelChildren.item(i).nodeType ) {	// element node
-            var bandNodes = gelChildren.item(i).childNodes;
-            var bandList = new Array();
-            for (var j = 0; j < bandNodes.length; j++){
-                if ( 1 == bandNodes.item(j).nodeType && bandNodes.item(j).hasAttribute("mobility") ) {
-                    bandList.push( bandNodes.item(j) );
-                }
-            }
-            Lanes.push(bandList);
-        }
-    }
-    animate();
-}
-
-function animate(){
-    time += step;
-    if ( time < time_limit) {
-        moveBands(time);
-        window.setTimeout("animate()", 50);
-    } else {
-        moveBands(time_limit);
-    }
-}
-
-function moveBands (targetTime){
-    for (var i = 0; i < Lanes.length; i++){
-        for (var j = 0; j < Lanes[i].length; j++){
-            var mobility = Lanes[i][j].getAttribute("mobility");
-            var bandheight = Lanes[i][j].getAttribute("bandheight")
-            var distance = targetTime * mobility - bandheight * 0.75;	// adjust for peak of bandShape
-            Lanes[i][j].setAttribute ("transform", "translate(0, " + distance + ")");
-        }
-    }
-}
 
 
 class Gel{
     constructor(margin = 20, lane_spacing = 46){
         this.MARGIN = margin
         this.LANE_SPACING = lane_spacing
+
+        this.time_limit = 1;
+        this.time = 0;
+        this.step = 0.005;
+
+        this.Lanes = new Array();
     }
 
     // svg_generation functions
@@ -102,7 +64,6 @@ class Gel{
     ${bands_svg}
 </g>
 `
-
     }
 
     get_band_svg = function(band){
@@ -166,4 +127,61 @@ class Gel{
 </svg>   
 `
     }
+
+    // animation functions
+    init_gel = function(){
+        var gelChildren = document.getElementById("gel").childNodes;
+        for ( var i=0; i < gelChildren.length; i++){
+            if ( 1 == gelChildren.item(i).nodeType ) {	// element node
+                var bandNodes = gelChildren.item(i).childNodes;
+                var bandList = new Array();
+                for (var j = 0; j < bandNodes.length; j++){
+                    if ( 1 == bandNodes.item(j).nodeType && bandNodes.item(j).hasAttribute("mobility") ) {
+                        bandList.push( bandNodes.item(j) );
+                    }
+                }
+                this.Lanes.push(bandList);
+            }
+        }
+        this.animate();
+    }
+
+    animate = function(){
+        this.time += this.step;
+        if ( this.time < this.time_limit) {
+            this.moveBands(this.time);
+            window.setTimeout("GEL.animate()", 50); // !!! Hack Alert !!! GEL object needs to know its own name 
+        } else {
+            this.moveBands(this.time_limit);
+        }
+    }
+
+    moveBands = function(targetTime){
+        for (var i = 0; i < this.Lanes.length; i++){
+            for (var j = 0; j < this.Lanes[i].length; j++){
+                var mobility = this.Lanes[i][j].getAttribute("mobility");
+                var bandheight = this.Lanes[i][j].getAttribute("bandheight")
+                var distance = targetTime * mobility - bandheight * 0.75;	// adjust for peak of bandShape
+                this.Lanes[i][j].setAttribute ("transform", "translate(0, " + distance + ")");
+            }
+        }
+    }
+
+    load_svg = function(my_gel_data){
+        document.getElementById("gel_display").innerHTML = this.get_svg(my_gel_data)
+        this.init_gel()
+    }
+
+    // Class methods
+
+    create_marker_band_data = function(ladder_spacing=100, num_bands=30){
+        let marker_molecules = []
+        for (let i=1; i<=num_bands; i++){
+            let band_size = i * ladder_spacing
+            marker_molecules.push({"size": band_size, "quantity":(5e-4)/band_size})  // quantity in mol
+        }
+        return marker_molecules
+    }
 }
+
+

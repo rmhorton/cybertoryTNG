@@ -1,4 +1,4 @@
-CACHE_PRELOADS = {
+{
     "NC_000913.3::ATGTTCAGCGTTTCTGGTC::top::0": [
         {
             "template_id": "NC_000913.3",

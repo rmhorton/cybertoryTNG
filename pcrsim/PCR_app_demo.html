@@ -13,7 +13,9 @@
             var SEARCHER = new PrimerSearcher();
             var HYBRIDIZER = new Hybridizer();
             var GEL = new Gel();
-            
+
+            SEARCHER.load_cache_from_data_obj(CACHE_PRELOADS)
+
             // aal = SEARCHER.search_primer('NC_000913.3', 'ATGTTCAGCGTTCTGGTC', strand='top', fudge=10);a = aal[0].alignments[0]
 
             go = function(){
@@ -22,7 +24,7 @@
             }
             
 
-            var GEL_DATA;
+            var GEL_DATA;  // set as a side effect of 'run_PCR_reactions'
             run_PCR_reactions = function(){
                 
                 let my_template = new DnaMolecule('NC_000913.3', TEMPLATES['NC_000913.3']) // a sequence where the name refers to another object
@@ -66,13 +68,14 @@
                 lane2 = my_pcr2.get_band_data()
                 lane3 = my_pcr3.get_band_data()
 
-
-                GEL_DATA = [
-                    create_marker_band_data(100, 20).map(to_gel_band),
-                    lane1.map(to_gel_band),
-                    lane2.map(to_gel_band),
-                    lane3.map(to_gel_band)
+                lanes_data = [
+                    GEL.create_marker_band_data(100, 20),
+                    lane1,
+                    lane2,
+                    lane3
                 ]
+                
+                GEL_DATA = lanes_data.map(bands_data => { return bands_data.map(to_gel_band) })
 
                 document.getElementById("status_div").innerHTML = "<b>Ready!</b>"
             }
@@ -102,24 +105,16 @@
             <input type="button" value="run PCRs" onclick="go()" />
             <div id="status_div">&nbsp;</div>
             <br />
-            <input type="button" value="run gel" onclick="load_svg(GEL_DATA)" />
+            <input type="button" value="run gel" onclick="GEL.load_svg(GEL_DATA)" />
         </form>
         <div id="gel_display">
          
         </div>
 
         <p>
-            <h2>To Do:</h2>
-            <ul>
-                <li>Specify both the template name and primer sequence in search_primer(), so that there is only one PRIMER_SEARCHER object.</li>
-                <li>keep local TEMPLATES in a dictionary, where every template sequence has a name. The name should be the GenBank accession number. Someday, templates not in the local dictionary will be searched via remote call.</li>
-                <li>create AlternativeAlignmentList, AlternativeAlignment, and Alignment objects from data structures that can be easily converted to and from JSON</li>
-                <li>cache search_primer() results, and be able to pre-load this cache from a file.</li>
-            </ul>
 
             <h2>Test Code</h2>
             <pre>
-SEARCHER.load_cache_from_data_obj(CACHE_PRELOADS)
 
 let primerA_seq = document.getElementById('primerA').value
 let primerB_seq = document.getElementById('primerB').value
@@ -143,8 +138,6 @@ let soln1 = new Solution('soln1', volume=10)
 soln1.add_ingredient(my_template, 1e-12)
 soln1.add_ingredient(primerA, 1e-6)
 soln1.add_ingredient(primerB, 1e-6)
-
-
 
 let my_pcr = new PCR(soln1)
 my_pcr.find_template_primer_binding_sites(fudge=10)  // this is slow, so we want to be able to re-use the results
