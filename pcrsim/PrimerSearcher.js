@@ -12,15 +12,15 @@ In conventional matrix notation that would be M[i,j]
 
 class Alignment{
     
-    constructor(path, seqA, seqB){
-        this.path=path
+    constructor(seqA, seqB, template_begin, template_end){
+        // this.path=path  // no need to record the path
         this.A = seqA  // template
         this.B = seqB  // primer
-        this.template_end = path[0][0]
-        this.template_begin = path[path.length - 1][0] + 1
+        this.template_begin = template_begin  // template_begin = path[path.length - 1][0] + 1, template_end = path[0][0]
+        this.template_end = template_end
 
         // will be set by AlternativeAlignments.add_alignment
-        this.alignment_score = undefined
+        // this.alignment_score = undefined
 
         // thermodynamic values to be filled in by Hybridizer.add_aa_thermodynamics
         this.template_dH = undefined 
@@ -50,7 +50,7 @@ class Alignment{
             thermo_msg += ' *** Best Alternative ***'
         }
 
-        return `[${this.template_begin}:${this.template_end}] score:${this.alignment_score}${thermo_msg}\n${this.A}\n${spacer}\n${this.B}\n`
+        return `[${this.template_begin}:${this.template_end}] ${thermo_msg}\n${this.A}\n${spacer}\n${this.B}\n`
     }
 
     as_json = function(){
@@ -62,7 +62,7 @@ class Alignment{
         let my_dict = {
             'template_begin': this.template_begin,
             'template_end': this.template_end,
-            'alignment_score': this.alignment_score,
+            // 'alignment_score': this.alignment_score,
             'A': this.A,
             'B': this.B
         }
@@ -72,14 +72,15 @@ class Alignment{
 }
 
 class AlternativeAlignments{
-    constructor(alignment_score, strand){
-        this.alignment_score = alignment_score
+    constructor(template_id, alignment_score, strand){
+        this.template_id = template_id
         this.strand = strand
+        this.alignment_score = alignment_score
         this.alignments = []
     }
 
     add_alignment = function(my_alignment){
-        my_alignment.alignment_score = this.alignment_score
+        // my_alignment.alignment_score = this.alignment_score
         this.alignments.push(my_alignment)
     }
 
@@ -140,10 +141,11 @@ class AlternativeAlignmentsList extends Array{
     }
 
     as_text = function(){
-        let alignments_text = "Alignments:\n"
+        let alignments_text = 'Alignments:\n'
         // this.alternative_alignments_list.sort_aas_by_thermodynamic_stability()
         for (let aa of this){
             // aa.sort_alignments_by_thermodynamic_stability()
+            alignments_text += `template '${aa.template_id}', alignment_score: ${aa.alignment_score}\n`
             for (let alignment of aa.alignments){
                 alignments_text += '\n' + alignment.as_text()
             }
@@ -153,24 +155,10 @@ class AlternativeAlignmentsList extends Array{
     }
 
     // Converting an object to a JSON string and back is an old fashioned way of cloning an object in Javascript.
-    // I cache the JSON strings.
-    to_json = function(){
-        JSON.stringify(this)
-    }
-    /* ??? Should I store the parsed data object? Will this be easier to load from a configuration file?
-    from_json = function(json_str){
-        aal_obj = new AlternativeAlignmentsList()
-        let aal_data = JSON.parse(json_str)
-        for (let aa_data in aal_data){
-            alignments_score
-            strand
-            for (a in aa_data.alignments){
+    // I cache the simple data structure obtained by evaluating the JSON strings. 
+    // These will be used to generate the appropriate AlternativeAlignmentList, AlternativeAlignment, and Alignment objects.
+    // to_json = function(){ JSON.stringify(this) }
 
-            }
-        }
-        return aal_obj
-    }
-    */
 }
 
 class PrimerSearcher{
@@ -199,6 +187,41 @@ class PrimerSearcher{
 
         this.cache = {} // key = template_id::primer_seq, value = AlternativeAlignmentsList
     }
+
+    export_cache_as_json = function(){
+        // let my_json = '{'
+        // for (const [key, value] of Object.entries(this.cache)) {
+        //     console.log(`${key}: ${value}`);
+        //     // aa.sort_alignments_by_thermodynamic_stability()
+        //     my_json += `"${key}":` + JSON.stringify(value) + ',';
+        // }
+        // my_json += '}'
+        // return my_json
+        return JSON.stringify(this.cache)
+    }
+
+    load_cache_from_data_obj = function(cache_data){
+        for (const [cache_key, aal_data] of Object.entries(cache_data)) {
+            console.log(`loading cache key '${cache_key}' - creating new AlternativeAlignmentsList()`)
+            let aal = new AlternativeAlignmentsList()
+            for (const aa_data of aal_data){
+                console.log(`creating new AlternativeAlignments on ${aa_data.template_id}`)
+                let aa = new AlternativeAlignments(aa_data.template_id, aa_data.alignment_score, aa_data.strand)
+                for (const a_data of aa_data.alignments){
+                    console.log(`creating new Alignment between ${a_data.A} and ${a_data.B}`)
+                    let a = new Alignment(a_data.A, a_data.B, a_data.template_begin, a_data.template_end)
+                    aa.add_alignment(a)
+                }
+                aal.push(aa)
+            }
+            HYBRIDIZER.add_aa_list_thermodynamics(aal)
+            this.cache[cache_key] = aal
+        }
+    }
+
+    // import_cache_items_from_json = function(json_str){
+    //     new_cache_bits = JSON.parse(json_str)
+    // }
 
     /**
      * Returns a hash code from a string
@@ -328,7 +351,9 @@ class PrimerSearcher{
 
         // base case
         if ( (j == 0) || (i == 0) ){
-            let my_alignment = new Alignment(path, seqA, seqB) // let or var?
+            let template_begin = path[path.length - 1][0] + 1
+            let template_end = path[0][0]
+            let my_alignment = new Alignment(seqA, seqB, template_begin, template_end)
             // aa.alignments.push(my_alignment)
             aa.add_alignment(my_alignment)
             return
@@ -363,11 +388,13 @@ class PrimerSearcher{
 
     }
 
-    search_primer = function(template_id, primer, strand='top', fudge=0){
-        let cache_key = `${template_id}::${primer}`
-        // if ( cache_key in this.cache ){
-        //     return AlternativeAlignmentsList.from_json(this.cache[cache_key])
-        // } else {
+    search_primer = function(template_id, primer, strand='top', fudge=10){
+        let cache_key = `${template_id}::${primer}::${strand}::${fudge}`
+        console.log(`searching for "${cache_key}"`)
+        if ( cache_key in this.cache ){
+            console.log(`cache hit for "${cache_key}"`)
+            return this.cache[cache_key]
+        } else {
             this.set_template(TEMPLATES[template_id])
 
             if ( strand=='top' ){
@@ -389,14 +416,14 @@ class PrimerSearcher{
                 let i = starting_cell[0]
                 let j = starting_cell[1]
                 let alignment_score = this.dp_matrix[j][i]
-                let aa = new AlternativeAlignments(alignment_score, strand)
+                let aa = new AlternativeAlignments(template_id, alignment_score, strand)
                 this.traceback([starting_cell], aa)
                 this.alternative_alignments_list.push(aa)
             }
             console.log(`sites found: ${starting_cells.length}`)
-            this.cache[cache_key] = JSON.stringify(this.alternative_alignments_list)
+            this.cache[cache_key] = this.alternative_alignments_list
             return this.alternative_alignments_list
-        // }
+        }
     }
 
     // guardrail functions

@@ -5,6 +5,7 @@
         <script language="javascript" src="PrimerSearcher.js"></script>
         <script language="javascript" src="TEMPLATES.js"></script>  <!-- instantiates global TEMPLATES object -->
         <script language="javascript" src="PCR.js"></script>
+        <script language="javascript" src="CACHE_PRELOADS.js"></script>
     </head>
     <body>
         <script language="javascript">
@@ -263,16 +264,32 @@
 
             <h2>Test Code</h2>
             <pre>
-let my_template = new DnaMolecule('NC_000913.3', TEMPLATES['NC_000913.3']) // a sequence where the name refers to another object
+SEARCHER.load_cache_from_data_obj(CACHE_PRELOADS)
+
 let primerA_seq = document.getElementById('primerA').value
 let primerB_seq = document.getElementById('primerB').value
-let primerA = new DnaMolecule(primerA_seq, primerA_seq) // a verbatim sequence where the sequence is the name
-let primerB = new DnaMolecule(primerB_seq, primerB_seq)   // another verbatim sequence
+
+let aa_list = SEARCHER.search_primer('NC_000913.3', primerB_seq, 'bottom', 10)
+// SEARCHER.cache["NC_000913.3::ATCGGTATTGAACAGCAT::bottom::10"]
+// JSON.stringify(SEARCHER.cache)
+cache_obj = JSON.parse(SEARCHER.export_cache_as_json())
+
+new_searcher = new PrimerSearcher()
+new_searcher.load_cache_from_data_obj(cache_obj)
+new_searcher.cache
+
+
+let my_template = new DnaMolecule('NC_000913.3', TEMPLATES['NC_000913.3']) // a sequence where the name refers to another object
+
+let primerA = new DnaMolecule(primerA_seq, primerA_seq)  // a verbatim sequence where the sequence is the name
+let primerB = new DnaMolecule(primerB_seq, primerB_seq)  // another verbatim sequence
 
 let soln1 = new Solution('soln1', volume=10)
 soln1.add_ingredient(my_template, 1e-12)
 soln1.add_ingredient(primerA, 1e-6)
 soln1.add_ingredient(primerB, 1e-6)
+
+
 
 let my_pcr = new PCR(soln1)
 my_pcr.find_template_primer_binding_sites(fudge=10)  // this is slow, so we want to be able to re-use the results
