@@ -130,6 +130,8 @@ class Gel{
 
     // animation functions
     init_gel = function(){
+        this.time = 0;
+        this.step = 0.005;
         var gelChildren = document.getElementById("gel").childNodes;
         for ( var i=0; i < gelChildren.length; i++){
             if ( 1 == gelChildren.item(i).nodeType ) {	// element node
@@ -168,8 +170,6 @@ class Gel{
     }
 
     load_svg = function(my_gel_data){
-        this.time = 0;
-        this.step = 0.005;
         document.getElementById("gel_display").innerHTML = this.get_svg(my_gel_data)
         this.init_gel()
     }
