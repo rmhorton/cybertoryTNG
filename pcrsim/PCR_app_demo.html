@@ -12,7 +12,7 @@
         <script language="javascript">
             var SEARCHER = new PrimerSearcher();
             var HYBRIDIZER = new Hybridizer();
-            var GEL = new Gel();
+            var GEL = new Gel(display_div_id="gel_display");
 
             SEARCHER.load_cache_from_data_obj(CACHE_PRELOADS)
 
@@ -25,6 +25,7 @@
             
 
             var GEL_DATA;  // set as a side effect of 'run_PCR_reactions'
+            var lanes_data; // !!! global for debugging !!!
             run_PCR_reactions = function(){
                 
                 let my_template = new DnaMolecule('NC_000913.3', TEMPLATES['NC_000913.3']) // a sequence where the name refers to another object
@@ -103,13 +104,15 @@
             <br />
             <input type="button" value="run gel" onclick="GEL.load_svg(GEL_DATA)" />
         </form>
-        <div id="gel_display">
-         
-        </div>
+        <div id="gel_display"></div>
 
+        <hr/>
+        <div id="gel2_display"></div>
+
+
+
+        <h2>Test Code</h2>
         <p>
-
-            <h2>Test Code</h2>
             <pre>
 
 let primerA_seq = document.getElementById('primerA').value
@@ -146,5 +149,6 @@ my_pcr.run(num_cycles=pcr1_cycles, denaturationTemp=98, annealingTemp=pcr1_annea
 my_pcr.potential_products[0].concentration_history
             </pre>
         </p>
+
     </body>
 </html>

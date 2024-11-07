@@ -261,7 +261,9 @@ function Hybridizer(){
                     G_min_index = i
                 }
             }
-            aa.alignments[G_min_index].is_best_alternative = true
+            if (G_min_index >= 0){ // Why would it fail to find a best one?
+                aa.alignments[G_min_index].is_best_alternative = true
+            }
         }
 
     }

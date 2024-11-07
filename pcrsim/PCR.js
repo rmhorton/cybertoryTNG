@@ -30,6 +30,10 @@ class DnaMolecule extends Ingredient {
 
 class IngredientQuantity {
     constructor(ingredient, quantity){
+        if (quantity < 0) { 
+            console.log("Oops: Attempt to create IngredientQuantity with negative quantity")
+            quantity = 0
+        }
         this.ingredient = ingredient
         this.quantity = quantity
     }
@@ -157,24 +161,29 @@ class PCR{
 
         this.PRIMER_CONC = this.solution.get_primer_concentrations_dict()
         // To do: get dictionaries of template sequences and quantities, keyed by id
+
+        // Configuration options
+        this.FUDGE = 10  // Controls how far from perfect alignments can be.
+        this.MAX_BINDING_SITES = 20 // Only take this many of the best binding sites per primer.
     }
 
     alternative_alignments_to_pbs_list = function(aa_list, my_primer_iq, my_template_iq, my_strand){
         // From a list of alternative alignments, find the one with the highest binding _strandenergy (G55).
         // Use this thermodynamically best alignment to create a new PBS, and add it to the list.
-        
         HYBRIDIZER.add_aa_list_thermodynamics(aa_list)
         aa_list.sort_aas_by_thermodynamic_stability()
+
+        let best_alignments = aa_list.map( aa => aa.get_best_alignment() )
         
         let pbs_list = []
-        for (let aa of aa_list){
-            let my_pbs = new PrimerBindingSite(my_primer_iq, my_template_iq, my_strand, aa.get_best_alignment())
+        for (let best_alignment of best_alignments.slice(0, this.MAX_BINDING_SITES)){
+            let my_pbs = new PrimerBindingSite(my_primer_iq, my_template_iq, my_strand, best_alignment)
             pbs_list.push(my_pbs)
         }
         return pbs_list
     }
 
-    find_template_primer_binding_sites = function(fudge=0){
+    find_template_primer_binding_sites = function(){
         // TO DO: create PBS objects that know the primer concentrations etc.
         // run searches and populate left and right PBS lists.
         
@@ -193,7 +202,7 @@ class PCR{
 
                 // search top strand
                 for (let strand_tb of ['top', 'bottom']){
-                    let aa_list = SEARCHER.search_primer(template_id, primer_seq, strand_tb, fudge=fudge)
+                    let aa_list = SEARCHER.search_primer(template_id, primer_seq, strand_tb, this.FUDGE)
                     let new_pbs_list = this.alternative_alignments_to_pbs_list(aa_list, primer_iq, template_iq, strand_tb)
                     my_tpbs.strand[strand_tb].push(...new_pbs_list)
                 }
@@ -210,6 +219,7 @@ class PCR{
         for (let my_tpbs of this.template_primer_binding_sites_list){
             for (let left_pbs of my_tpbs.strand['top']){
                 for (let right_pbs of my_tpbs.strand['bottom']){
+                    // console.log(`!!! left_pbs.alignment.B: ${left_pbs.alignment.B}`)
                     let my_product_size = right_pbs.alignment.template_end - left_pbs.alignment.template_begin + 1
                     if ( (my_product_size > 0) && ( my_product_size <= max_amplicon_length)) {
                         let my_pp = new PotentialProduct(my_tpbs.template_iq, left_pbs, right_pbs, this)
@@ -356,14 +366,18 @@ class PotentialProduct{
 		// let primed_concentration = this.hybrid(this.pcr.PRIMER_CONC[pbs.primer_seq], targetConc, 
         //                                         pbs.alignment.template_dH, pbs.alignment.template_dS, annealingTemp)
         let bound_fraction = this.fraction_template_bound(pbs.alignment.template_dH, pbs.alignment.template_dS, this.pcr.PRIMER_CONC[pbs.primer_seq], annealingTemp)
-        return targetConc * bound_fraction * this.priming_coeff(pbs.alignment.A, pbs.alignment.B)
+        let primed_quantity = targetConc * bound_fraction * this.priming_coeff(pbs.alignment.A, pbs.alignment.B)
+        if (primed_quantity < 0) { primed_quantity = 0 }
+        return primed_quantity
 	}
 
 	primeProduct = function(pbs, annealingTemp, targetConc){
 		// let primed_concentration =  this.hybrid(this.pcr.PRIMER_CONC[pbs.primer_seq], targetConc, 
         //                                         pbs.alignment.primer_dH, pbs.alignment.primer_dS, annealingTemp)
         let bound_fraction = this.fraction_template_bound(pbs.alignment.primer_dH, pbs.alignment.primer_dS, this.pcr.PRIMER_CONC[pbs.primer_seq], annealingTemp)
-        return targetConc * bound_fraction
+        let primed_quantity = targetConc * bound_fraction
+        if (primed_quantity < 0) { primed_quantity = 0 }
+        return primed_quantity
 	}
 
     cycle = function(denaturationTemp, annealingTemp, polymeraseActivity){
@@ -421,6 +435,9 @@ class PotentialProduct{
 		// avoid negative concentrations
 		if (this.pcr.PRIMER_CONC[this.pbsA.primer_seq] < 0) this.pcr.PRIMER_CONC[this.pbsA.primer_seq] = 0
 		if (this.pcr.PRIMER_CONC[this.pbsB.primer_seq] < 0) this.pcr.PRIMER_CONC[this.pbsB.primer_seq] = 0
+        for (let attr of ["concAOtop", "concOBbot", "concABtop", "concABbot"]){
+            if (this[attr] < 0){ this[attr] = 0 } 
+        }
 		
 		this.concAOtop += d_concAOtop
 		this.concOBbot += d_concOBbot

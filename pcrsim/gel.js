@@ -13,6 +13,7 @@
 // }
 
 to_gel_band = function(band_data){
+    if (band_data.quantity < 0) {band_data.quantity = 0} // !!!
     // To Do: mobility should depend on gel agarose concentration (maybe band_height should too).
     mobility = function(size, gamma=3400){
         // https://pubmed.ncbi.nlm.nih.gov/11824615/
@@ -29,7 +30,10 @@ to_gel_band = function(band_data){
 
 
 class Gel{
-    constructor(margin = 20, lane_spacing = 46){
+    constructor(display_div_id="gel_display", margin = 20, lane_spacing = 46){
+        this.display_div_id = display_div_id
+        this.gel_id = display_div_id + "_gel"
+
         this.MARGIN = margin
         this.LANE_SPACING = lane_spacing
 
@@ -119,7 +123,7 @@ class Gel{
     </g>${wells_svg}
 
     <g clip-path="url(#gelClip)" id="bandArea">
-        <g id="gel" transform="translate(0,38)">
+        <g id="${this.gel_id}" transform="translate(0,38)">
             ${lanes_svg}
         </g>
     </g>
@@ -132,7 +136,7 @@ class Gel{
     init_gel = function(){
         this.time = 0;
         this.step = 0.005;
-        var gelChildren = document.getElementById("gel").childNodes;
+        var gelChildren = document.getElementById(this.gel_id).childNodes;
         for ( var i=0; i < gelChildren.length; i++){
             if ( 1 == gelChildren.item(i).nodeType ) {	// element node
                 var bandNodes = gelChildren.item(i).childNodes;
@@ -170,7 +174,7 @@ class Gel{
     }
 
     load_svg = function(my_gel_data){
-        document.getElementById("gel_display").innerHTML = this.get_svg(my_gel_data)
+        document.getElementById(this.display_div_id).innerHTML = this.get_svg(my_gel_data)
         this.init_gel()
     }
 

@@ -202,13 +202,13 @@ class PrimerSearcher{
 
     load_cache_from_data_obj = function(cache_data){
         for (const [cache_key, aal_data] of Object.entries(cache_data)) {
-            console.log(`loading cache key '${cache_key}' - creating new AlternativeAlignmentsList()`)
+            // console.log(`loading cache key '${cache_key}' - creating new AlternativeAlignmentsList()`)
             let aal = new AlternativeAlignmentsList()
             for (const aa_data of aal_data){
-                console.log(`creating new AlternativeAlignments on ${aa_data.template_id}`)
+                // console.log(`creating new AlternativeAlignments on ${aa_data.template_id}`)
                 let aa = new AlternativeAlignments(aa_data.template_id, aa_data.alignment_score, aa_data.strand)
                 for (const a_data of aa_data.alignments){
-                    console.log(`creating new Alignment between ${a_data.A} and ${a_data.B}`)
+                    // console.log(`creating new Alignment between ${a_data.A} and ${a_data.B}`)
                     let a = new Alignment(a_data.A, a_data.B, a_data.template_begin, a_data.template_end)
                     aa.add_alignment(a)
                 }
@@ -398,10 +398,8 @@ class PrimerSearcher{
             this.set_template(TEMPLATES[template_id])
 
             if ( strand=='top' ){
-                console.log('search_primer: top strand')
                 this.set_primer(primer)
             } else if ( strand=='bottom') {
-                console.log('search_primer: bottom strand')
                 this.set_primer(this.revcomp(primer))
             } else {
                 throw new Error(`ERROR!!! Strand "${strand}" invalid`)
