@@ -1,0 +1,184 @@
+---
+title: "Reproducing Figures 2A & C from RNA-Seq data"
+author: "Bob"
+date: "2024-10-23"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warn=FALSE, message=FALSE)
+```
+
+```{r libraries}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+The code for barplots is mostly taken from the top answer to a stackoverflow post on ['Side by side barplots with error bars'](https://stackoverflow.com/questions/29995480/side-by-side-r-barplot-with-error-bars). Note that the author of the answer points out that bar plots are rarely the best way to represent this kind of data.
+
+We start by entering the data. I put each sample on its own row so we can add new computed values as columns. Note that the labels from the original data seem to be messed up; I assume the first two data columns are empty vector and the other two are the HPV16 E5 gene.
+
+```{r data}
+
+# put each sample on its own row
+(
+  rnaseq_counts <- data.frame(
+    cell_line =  c('EV', 'EV', 'E5', 'E5') %>% factor(levels=c('EV', 'E5')),
+    replicate = c(1,2,1,2),
+    PSMB8_counts = c(  824,  1217,   989,  1274),
+    PSMB9_counts = c(  732,   949,   716,   908),
+    GAPDH_counts = c(49615, 64424, 63278, 84807),
+    TAP1_counts =  c( 3147,  3736,  3024,  4079),
+    TAP2_counts =  c( 5644,  6323,  5228,  7188)
+  ) %>% 
+  mutate(
+    PSMB8 = PSMB8_counts/GAPDH_counts,
+    PSMB9 = PSMB9_counts/GAPDH_counts,
+    TAP1 = TAP1_counts/GAPDH_counts,
+    TAP2 = TAP2_counts/GAPDH_counts
+  )
+
+)
+```
+
+Pivot to long form. This is considered a 'tidier' format because the gene names are data.
+
+```{r pivot_longer}
+(
+  ratios_long <- rnaseq_counts %>%
+    select(cell_line, replicate, PSMB8, PSMB9, TAP1, TAP2) %>%
+    pivot_longer(cols=c(PSMB8, PSMB9, TAP1, TAP2),
+                 names_to='gene', values_to = 'relative_expression') %>%
+    mutate(gene = factor(gene))
+)
+```
+
+Plot datapoints. This is probably a better way to present this data with only two replicates per sample. I'm showing it here before normalizing to the EV expression level.
+
+```{r plot_datapoints}
+ratios_long %>% ggplot(aes(x=gene, y=relative_expression, fill=cell_line, col=cell_line)) +
+  stat_summary(fun = mean, geom = "point", position = position_dodge(width = .5),
+               size=30, shape="-", show.legend=T, alpha=0.5) + # plot mean as "-"
+  geom_jitter(position=position_jitterdodge(jitter.width = .3, dodge.width = .5),
+              size = 4, alpha = .7) +
+  labs(x = "gene", y = 'ratio to GAPDH') +
+  theme_light()
+```
+
+
+To find means and standard deviations, we aggregate over replicates:
+
+```{r aggregate_over_replicates}
+
+group_stats <- ratios_long %>% 
+  group_by(cell_line, gene) %>% 
+  summarize(
+    mean = mean(relative_expression),
+    sd = sd(relative_expression)
+  )
+```
+
+Now normalize measurements relative to EV:
+```{r normalize_to_EV}
+group_stats$normalized_mean <- group_stats$mean/group_stats$mean[1:4]
+group_stats$normalized_sd <- group_stats$sd/group_stats$mean[1:4]
+
+group_stats
+```
+
+
+Finally, we can make the bar plot:
+```{r bar_plot}
+
+group_stats %>% 
+  mutate(
+    error_bar_lower=normalized_mean - normalized_sd,
+    error_bar_upper=normalized_mean + normalized_sd
+  ) %>%
+  ggplot(aes(x=gene, y=normalized_mean, fill=cell_line, col=cell_line, ymin=error_bar_lower, ymax=error_bar_upper)) +
+    geom_bar(stat="identity", alpha=0.6, position = position_dodge(width = 0.95)) +
+    geom_errorbar( position=position_dodge(width = 0.95), width=0.5, alpha=1, linewidth=1.3) + 
+  labs(x = "gene", y = 'PSMB/GAPDH\n(Empty vector = 1)') +
+  scale_y_continuous(breaks=c(0, 0.25, 0.5, 0.75, 1.0)) +
+  scale_fill_grey(start = 0.2, end = .7) +
+  scale_color_grey(start = 0.0, end = 0.0) +
+  theme_bw() + 
+  theme(
+    # panel.grid.major = element_blank(),
+    # panel.grid.minor = element_blank(),
+    panel.border = element_blank()
+  )
+
+```
+
+This is not exactly the same as Figure 2A because this is from different experiments (the original is from qPCR, and this is from RNA-Seq counts). The general pattern appears to hold that PSMB8 is reduced some, and PSMB9 is reduced more, though neither is reduced quite as much as in Figure 2A. The biggest differences are in the error bars. It is not clear how many replicates they used for qPCR, but I assume it was more than 2. Since we only have two replicates, our error estimates are a bit wild. 
+
+# Resampling
+
+```{r resampling}
+targets <- c('PSMB8', 'PSMB9', 'TAP1', 'TAP2')
+control <- 'GAPDH'
+all_genes <- c(control, targets)
+
+get_total_counts_for_cell_line <- function(cell_line){
+  # collect counts across all replicates
+  all_genes %>% 
+    sapply(function(gene){
+      cc <- paste0(gene, '_counts')
+      sum(rnaseq_counts[[cc]][ rnaseq_counts$cell_line == cell_line])
+    })
+}
+
+total_counts_by_cell_line <- unique(rnaseq_counts[['cell_line']]) %>%
+  setNames(nm=.) %>% 
+  lapply(get_total_counts_for_cell_line) %>%
+  as.data.frame
+
+subsample_gene_counts <- function(cell_line, fraction=1){
+  counts_vector <- total_counts_by_cell_line[cell_line]
+  counts <- sample(row.names(counts_vector), 
+                   size=floor(fraction * sum(counts_vector)),
+                   prob=unlist(counts_vector), replace=TRUE) %>%
+            table %>% 
+            as.list
+  counts['E5_status'] <- ifelse(cell_line=='E5', 'pos', 'neg')
+  counts
+}
+
+# total_counts_by_cell_line
+# subsample_gene_counts('EV')
+
+num_pos_patients <-  3
+num_neg_patients <- 12
+
+HPV_status <- c(rep('E5', num_pos_patients), rep('EV', num_neg_patients))
+
+patient_counts <- HPV_status %>% 
+  lapply(subsample_gene_counts, fraction=0.01) %>% 
+  do.call('rbind', .) %>% 
+  as.data.frame
+
+patient_counts['patient_id'] <- 1:nrow(patient_counts)
+
+for (gene in targets){
+  ratio_col <- paste0(gene, '_ratio')
+  patient_counts[ratio_col] <- unlist(patient_counts[[gene]]) / unlist(patient_counts[['GAPDH']])
+}
+
+patient_counts
+```
+
+```{r plot_patient_counts}
+ratio_cols <- c("PSMB8_ratio","PSMB9_ratio","TAP1_ratio","TAP2_ratio")
+keep_cols <- c("patient_id", "E5_status", ratio_cols)
+patient_counts %>% 
+  mutate(E5_status = as.character(E5_status)) %>%
+  select(all_of(keep_cols)) %>%
+  pivot_longer(cols=ratio_cols, names_to="gene", values_to="ratio") %>% 
+  ggplot(aes(x=gene, y=ratio, col=E5_status)) + 
+    geom_point(position=position_dodge(0.2), size=2)
+
+```
