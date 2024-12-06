@@ -1,0 +1,138 @@
+<html>
+    <head>
+        <title>qPCR Simulation App Demo</title>
+        <script language="javascript" src="Hybridizer.js"></script>
+        <script language="javascript" src="PrimerSearcher.js"></script>
+        <script language="javascript" src="TRANSCRIPT_TEMPLATES.js"></script>  <!-- instantiates global TEMPLATES object -->
+        <script language="javascript" src="PATIENT_TEMPLATE_QUANTITIES.js"></script>  <!-- instantiates global PATIENT_TEMPLATE_QUANTITIES object -->
+        <script language="javascript" src="Solution.js"></script>
+        <script language="javascript" src="PCR.js"></script>
+        <script language="javascript" src="gel.js"></script>
+        <!-- script language="javascript" src="CACHE_PRELOADS.js"></script -->
+    </head>
+    <body>
+        <script language="javascript">
+            var SEARCHER = new PrimerSearcher();
+            var HYBRIDIZER = new Hybridizer();
+            var GEL = new Gel(display_div_id="gel_display");
+
+            // SEARCHER.load_cache_from_data_obj(CACHE_PRELOADS)
+
+            // aal = SEARCHER.search_primer('NC_000913.3', 'ATGTTCAGCGTTCTGGTC', strand='top', fudge=10);a = aal[0].alignments[0]
+
+            go = function(){
+                document.getElementById("status_div").innerHTML = "<b>Running...</b>"
+                window.setTimeout(run_PCR_reactions, 1)
+            }
+
+            var GEL_DATA;  // set as a side effect of 'run_PCR_reactions'
+            var lanes_data; // !!! global for debugging !!!
+
+            set_up_PCR_reaction = function(primerA_seq, primerB_seq, ptq, volume=10, num_cycles=25, annealing_temp=55){
+                let my_soln = new Solution('soln1', volume=10)
+                
+                let primerA = new DnaMolecule(primerA_seq, primerA_seq)
+                let primerB = new DnaMolecule(primerB_seq, primerB_seq)
+
+                my_soln.add_ingredient(primerA, 1e-6)
+                my_soln.add_ingredient(primerB, 1e-6)
+                
+                for (const [ptq_key, ptq_value] of Object.entries(ptq)){
+                    if (ptq_key in TEMPLATES){  // this is a gene name
+                        let my_template = new DnaMolecule(ptq_key, TEMPLATES[ptq_key])
+                        my_soln.add_ingredient(my_template, ptq_value/1e15)  // !!! adjust as needed!!!
+                    }
+                }
+                
+                let my_pcr = new PCR(my_soln)
+                
+                return(my_pcr)
+            }
+
+            run_PCR_reactions = function(){
+
+                let primerA_seq = document.getElementById('primerA').value
+                let primerB_seq = document.getElementById('primerB').value
+                let num_cycles = document.getElementById('pcr_num_cycles').value
+                let annealing_temp = document.getElementById('pcr_annealing_temp').value
+
+                let PCRs = {}
+                for (let ptq of PATIENT_TEMPLATE_QUANTITIES){
+                    my_pcr = set_up_PCR_reaction(
+                        primerA_seq, 
+                        primerB_seq,
+                        ptq,
+                        volume=10
+                    )
+                     
+                    my_pcr.run(num_cycles=num_cycles, denaturationTemp=98, annealingTemp=annealing_temp)
+                    PCRs[ptq.patient_id] = my_pcr
+                }
+
+                lanes_data = [
+                    GEL.create_marker_band_data(100, 20),
+                    PCRs[1].get_band_data(),
+                    PCRs[2].get_band_data(),
+                    PCRs[3].get_band_data(),
+                    PCRs[4].get_band_data(),
+                    PCRs[5].get_band_data(),
+                    PCRs[6].get_band_data(),
+                    PCRs[7].get_band_data(),
+                    PCRs[8].get_band_data(),
+                    PCRs[9].get_band_data(),
+                    PCRs[10].get_band_data()
+                    // PCRs.map( () => o.get_band_data() )
+                ]
+                
+                GEL_DATA = lanes_data.map(bands_data => { return bands_data.map(to_gel_band) })
+
+                document.getElementById("status_div").innerHTML = "<b>Ready!</b>"
+
+                return PCRs
+            }
+
+
+        </script>
+        <h1>qPCR Simulation App Demo</h1>
+
+        <h3>Standard Primers</h3>
+        <table>
+            <tr><th>gene</th><th>5' primer</th><th>3' primer</th></tr>
+            <tr><td>MX1</td><td>CAGCCTGCTGACATTGGGTA</td><td>CATTACTGGGGACCACCACC</td></tr>
+            <tr><td>STAT1</td><td>CACCTAACGTGCTGTGCGTA</td><td>AGAATCCTCCACCAACATCC</td></tr>
+            <tr><td>PSMB8</td><td>TTACCTGCTTGGCACCATGT</td><td>GCTGCCGACACTGAAATACG</td></tr>
+            <tr><td>PSMB9</td><td>ACAGCCTTTTGCCATTGGTG</td><td>GCAATAGCGTCTGTGGTGAAG</td></tr>
+            <tr><td>TAP1</td><td>CCAGTGGTCTGTTGACTCCC</td><td>AATGTCAGCCCCTGTAGCAC</td></tr>
+            <tr><td>TAP2</td><td>CCTTGAACAATGTCGGCAGC</td><td>AAGTGCAGCACCCTCCTTAC</td></tr>
+            <tr><td>IFNB1</td><td>CTTTGCTCTGGCACAACAGG</td><td>GTGGAGAAGCACAACAGGAGA</td></tr>
+            <tr><td>IFIH1</td><td>TTGGACTCGGGAATTCGTGG</td><td>AACGATGGAGAGGGCAAGTC</td></tr>
+            <tr><td>DDX58</td><td>AGAGCACTTGTGGACGCTTTA</td><td>TTGTTTTGCCACGTCCAGTC</td></tr>
+            <tr><td>GAPDH</td><td>GCAAATTCCATGGCACCGTC</td><td>TCGCCCCACTTGATTTTGGA</td></tr>
+        </table>
+
+        <p> Primers and reaction conditions you specify here will be run on all patient samples.</p>
+
+        <form>
+            Primer A: <textarea id="primerA" rows="1" cols="30">CAGCCTGCTGACATTGGGTA</textarea> <br />
+            Primer B: <textarea id="primerB" rows="1" cols="30">CATTACTGGGGACCACCACC</textarea> <br />
+            cycles: <input id="pcr_num_cycles" type="text" size="4" value="25" />
+            annealing temperature: <input id="pcr_annealing_temp" type="text" size="4" value="55" />
+
+            <br />
+            <input type="button" value="run PCRs" onclick="go()" />
+            <div id="status_div">&nbsp;</div>
+            <br />
+            <input type="button" value="run gel" onclick="GEL.load_svg(GEL_DATA)" />
+        </form>
+        <div id="gel_display"></div>
+
+        <hr/>
+        <div id="gel2_display"></div>
+
+<!--
+TO DO:
+-->
+
+
+    </body>
+</html>
