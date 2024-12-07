@@ -8,6 +8,7 @@
         <script language="javascript" src="Solution.js"></script>
         <script language="javascript" src="PCR.js"></script>
         <script language="javascript" src="gel.js"></script>
+        <!-- script language="javascript" src="bob_oligo.js"></script -->
         <!-- script language="javascript" src="CACHE_PRELOADS.js"></script -->
     </head>
     <body>
@@ -26,6 +27,7 @@
             }
 
             var GEL_DATA;  // set as a side effect of 'run_PCR_reactions'
+            var PCRs = {}
             var lanes_data; // !!! global for debugging !!!
 
             set_up_PCR_reaction = function(primerA_seq, primerB_seq, ptq, volume=10, num_cycles=25, annealing_temp=55){
@@ -56,7 +58,6 @@
                 let num_cycles = document.getElementById('pcr_num_cycles').value
                 let annealing_temp = document.getElementById('pcr_annealing_temp').value
 
-                let PCRs = {}
                 for (let ptq of PATIENT_TEMPLATE_QUANTITIES){
                     my_pcr = set_up_PCR_reaction(
                         primerA_seq, 
@@ -91,25 +92,62 @@
                 return PCRs
             }
 
+            download_data_as_file = function(data_rows, filename){
+                let csvContent = "data:text/csv;charset=utf-8," + data_rows.map(e => e.join(",")).join("\n");
+
+                var encodedUri = encodeURI(csvContent);
+                var link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", filename + ".csv");
+                document.body.appendChild(link);
+
+                link.click(); // This will download the data file named "my_data.csv".
+            }
+
+            get_fluorescence_data_by_cycle = function(){
+                let fluorescence_data_rows = [ ["cycle"] ]
+                let fluorescence_data_cols = []
+
+                for (const [pcr_num, pcr_obj] of Object.entries(PCRs)){
+                    fluorescence_data_rows[0].push(`PCR${pcr_num}`)
+                    fluorescence_data_cols.push(pcr_obj.get_fluorescence_history())
+                }
+
+                for (let cycle_num=0; cycle_num<PCRs[1].cycles; cycle_num++){
+                    my_row = [`${cycle_num}`]
+                    for (let fdc of fluorescence_data_cols){
+                        my_row.push(`${fdc[cycle_num]}`)
+                    }
+                    fluorescence_data_rows.push(my_row)
+                }
+
+                return fluorescence_data_rows
+            }
+
+            get_melting_curves = function(){
+
+
+            }
 
         </script>
         <h1>qPCR Simulation App Demo</h1>
 
         <h3>Standard Primers</h3>
         <table>
-            <tr><th>gene</th><th>5' primer</th><th>3' primer</th></tr>
-            <tr><td>MX1</td><td>CAGCCTGCTGACATTGGGTA</td><td>CATTACTGGGGACCACCACC</td></tr>
-            <tr><td>STAT1</td><td>CACCTAACGTGCTGTGCGTA</td><td>AGAATCCTCCACCAACATCC</td></tr>
-            <tr><td>PSMB8</td><td>TTACCTGCTTGGCACCATGT</td><td>GCTGCCGACACTGAAATACG</td></tr>
-            <tr><td>PSMB9</td><td>ACAGCCTTTTGCCATTGGTG</td><td>GCAATAGCGTCTGTGGTGAAG</td></tr>
-            <tr><td>TAP1</td><td>CCAGTGGTCTGTTGACTCCC</td><td>AATGTCAGCCCCTGTAGCAC</td></tr>
-            <tr><td>TAP2</td><td>CCTTGAACAATGTCGGCAGC</td><td>AAGTGCAGCACCCTCCTTAC</td></tr>
-            <tr><td>IFNB1</td><td>CTTTGCTCTGGCACAACAGG</td><td>GTGGAGAAGCACAACAGGAGA</td></tr>
-            <tr><td>IFIH1</td><td>TTGGACTCGGGAATTCGTGG</td><td>AACGATGGAGAGGGCAAGTC</td></tr>
-            <tr><td>DDX58</td><td>AGAGCACTTGTGGACGCTTTA</td><td>TTGTTTTGCCACGTCCAGTC</td></tr>
-            <tr><td>GAPDH</td><td>GCAAATTCCATGGCACCGTC</td><td>TCGCCCCACTTGATTTTGGA</td></tr>
+            <tr><th>gene</th><th>Primer A</th><th>Primer B</th><th>Product size (bp)</th></tr>
+            <tr><td>MX1</td><td>CAGCCTGCTGACATTGGGTA</td><td>CATTACTGGGGACCACCACC</td><td></td></tr>
+            <tr><td>STAT1</td><td>CACCTAACGTGCTGTGCGTA</td><td>AGAATCCTCCACCAACATCC</td><td></td></tr>
+            <tr><td>PSMB8</td><td>TTACCTGCTTGGCACCATGT</td><td>GCTGCCGACACTGAAATACG</td><td></td></tr>
+            <tr><td>PSMB9</td><td>ACAGCCTTTTGCCATTGGTG</td><td>GCAATAGCGTCTGTGGTGAAG</td><td></td></tr>
+            <tr><td>TAP1</td><td>CCAGTGGTCTGTTGACTCCC</td><td>AATGTCAGCCCCTGTAGCAC</td><td></td></tr>
+            <tr><td>TAP2</td><td>CCTTGAACAATGTCGGCAGC</td><td>AAGTGCAGCACCCTCCTTAC</td><td></td></tr>
+            <tr><td>IFNB1</td><td>CTTTGCTCTGGCACAACAGG</td><td>GTGGAGAAGCACAACAGGAGA</td><td></td></tr>
+            <tr><td>IFIH1</td><td>TTGGACTCGGGAATTCGTGG</td><td>AACGATGGAGAGGGCAAGTC</td><td></td></tr>
+            <tr><td>DDX58</td><td>AGAGCACTTGTGGACGCTTTA</td><td>TTGTTTTGCCACGTCCAGTC</td><td></td></tr>
+            <tr><td>GAPDH</td><td>GCAAATTCCATGGCACCGTC</td><td>TCGCCCCACTTGATTTTGGA</td><td></td></tr>
         </table>
 
+        <hr />
         <p> Primers and reaction conditions you specify here will be run on all patient samples.</p>
 
         <form>
@@ -122,6 +160,8 @@
             <input type="button" value="run PCRs" onclick="go()" />
             <div id="status_div">&nbsp;</div>
             <br />
+            <input type="button" value="fluorescence data by cycle" onclick="download_data_as_file(get_fluorescence_data_by_cycle(), 'fluorescence_data_per_cycle')" />
+            <input type="button" value="melting curve" onclick="" />
             <input type="button" value="run gel" onclick="GEL.load_svg(GEL_DATA)" />
         </form>
         <div id="gel_display"></div>

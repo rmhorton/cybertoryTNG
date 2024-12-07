@@ -1,116 +1,5 @@
 // https://stackoverflow.com/questions/16626735/how-to-loop-through-an-array-containing-objects-and-access-their-properties
 
-class Ingredient {
-    constructor(id, type='Ingredient') {
-        this.type = type
-        this.id = id
-        // this.type = this.constructor.id  :: this does not seem to work for classes that inherit the method (???).
-    }
-}
-
-
-class DnaMolecule extends Ingredient {
-    // All sequences for now are verbatim; eventually they can be a reference to an object on a server.
-    // primer1 = new DnaMolecule('ACGTAACCGGTT', 'ACGTAACCGGTT')
-    constructor(id, sequence) {
-        super(id, 'DnaMolecule') // all Ingredients have 'id' and 'type'
-        this.sequence = sequence
-        this.units = 'p_mol' // picomol: 1e-12 mol; 1 pmol primer in 10ul = 0.1uM
-    }
-    is_primer = function(){
-        // if id == sequence, it is a primer; otherwise, it could be a template.
-        return this.id == this.sequence
-    }
-
-    is_template = function(){
-        return(this.id in TEMPLATES)
-    }
-}
-
-
-class IngredientQuantity {
-    constructor(ingredient, quantity){
-        if (quantity < 0) { 
-            console.log("Oops: Attempt to create IngredientQuantity with negative quantity")
-            quantity = 0
-        }
-        this.ingredient = ingredient
-        this.quantity = quantity
-    }
-
-}
-
-
-class Solution{
-    // To Do: solution ingredients should be keyed by ingredient ID, so if you add more of an ingredient it goes into the same pool.
-
-    constructor(id, volume=10, ingredient_quantities=[]){
-        this.id = id
-        this.volume = volume // ul
-        this.ingredient_quantities = []
-    }
-
-    add_ingredient = function(ingredient, quantity){
-        let my_iq = new IngredientQuantity(ingredient, quantity)
-        this.ingredient_quantities.push(my_iq)
-    }
-
-    get_templates = function(){
-        // returns a list of IngredientQuantity objects where each ingredient is a DnaMolecule 
-        let templates = []
-        for (let iq of this.ingredient_quantities){
-            let ingredient = iq['ingredient']
-            if ( (ingredient.type == 'DnaMolecule') && (ingredient.is_template())){
-                templates.push(iq)
-            }
-        }
-        return templates
-    }
-
-    get_primers = function(){
-        // returns a list of IngredientQuantity objects where each ingredient is a DnaMolecule 
-        let primers = []
-        for (let iq of this.ingredient_quantities){
-            let ingredient = iq['ingredient']
-            if ( (ingredient.type == 'DnaMolecule') && (ingredient.is_primer()) ){
-                primers.push(iq)
-            }
-
-        }
-        return primers
-    }
-
-    get_primer_concentrations_dict = function(){
-        let primer_conc = {}
-        for (let iq of this.ingredient_quantities){
-            let ingredient = iq['ingredient']
-            if ( (ingredient.type == 'DnaMolecule') && (ingredient.is_primer()) ){
-                primer_conc[ingredient.id] = iq.quantity / (this.volume * 1e-6)
-            }
-
-        }
-        return primer_conc
-    }
-
-    get_dna_polymerase_activity(){
-        // placeholder: should compute based on solution contents and history
-        return 100
-    }
-
-    // TO DO: set_primer_concentrations. Also [dNTP]s someday
-    /* These are not right
-    get_ingredient_concentration = function(primer_id){
-        return (this.ingredient_quantity[primer_id]/this.volume)
-    }
-
-    set_ingredient_concentration = function(primer_id, new_concentration){
-        this.ingredient_quantity[primer_id] = new_concentration
-    }
-    */
-
-    // ions, enzymes
-}
-
 /*
     primer_iq: an IngredientQuantity object where ingredient is of class DnaMolecule and ingredient.is_primer() is true
     primer_strand: 'top' (matches top strand) or 'bottom' (matches bottom strand, i.e., rc matches top strand)
@@ -158,6 +47,7 @@ class PCR{
         this.primers = solution.get_primers()
         this.template_primer_binding_sites_list = []
         this.potential_products = []
+        this.cycles = 0
 
         this.PRIMER_CONC = this.solution.get_primer_concentrations_dict()
         // To do: get dictionaries of template sequences and quantities, keyed by id
@@ -192,7 +82,6 @@ class PCR{
         let primers = this.solution.get_primers()
 
         for (let template_iq of templates){
-            // let my_searcher = new PrimerSearcher(template_iq['ingredient']['sequence'])
             let template_id = template_iq.ingredient.id
             let my_tpbs = new TemplatePrimerBindingSites(template_iq)  // ['ingredient']['id']
             for (let primer_iq of primers){
@@ -200,7 +89,6 @@ class PCR{
 
                 console.log(`primer_seq = ${primer_seq}`)
 
-                // search top strand
                 for (let strand_tb of ['top', 'bottom']){
                     let aa_list = SEARCHER.search_primer(template_id, primer_seq, strand_tb, this.FUDGE)
                     let new_pbs_list = this.alternative_alignments_to_pbs_list(aa_list, primer_iq, template_iq, strand_tb)
@@ -237,6 +125,7 @@ class PCR{
         this.find_template_primer_binding_sites()
         this.find_potential_products()
 
+        this.cycles = num_cycles
         // initialize all potential products
         for (let pp of this.potential_products){
             pp.init()
@@ -251,6 +140,13 @@ class PCR{
             }
             polymerase_activity *= polymerase_survival_per_cycle;
         }
+
+        // !!! copy PCR products back into the solution   !!!
+        // for (let pp of this.potential_products){
+            // pp_iq = new
+            // this.solution.add_ingredient(pp.
+            // for (let strand of ['concAOtop', 'concOBbot', 'concABtop', 'concABbot'])
+        // }
     }
 
     get_band_data = function(sample_volume=10){
@@ -266,6 +162,47 @@ class PCR{
         return band_data
     }
 
+    get_fluorescence_history = function(){
+        // We assume that [dsDNA] == ['concABtop'], so no excess or unhybridized single strands
+        let FLUORESCENCE_COEFF = 1e-3  // !!! decide on units !!!
+        let BACKGROUND = 2e-11
+        let NOISE_SCALE = 4e-12
+        // collect data from pp.concentration_history for pp of this.potential_products
+        // initialize with noise
+        let fluorescence_history = this.gaussian_noise(this.cycles, BACKGROUND, NOISE_SCALE)
+
+        for (let pp of this.potential_products){
+            let bp = pp.get_size()
+            for (let cycle_num=0; cycle_num < pp.concentration_history.length; cycle_num += 1){
+                let dsDNA_quantity = pp.concentration_history[cycle_num]['concABtop'] * bp
+                fluorescence_history[cycle_num] += dsDNA_quantity * FLUORESCENCE_COEFF
+            }
+        }
+        return fluorescence_history
+    }
+
+    get_melting_curve = function(){
+        let melting_curve = [ ["T", "dsDNA_conc",  "delta_ds"] ]
+
+        for (let pp of this.potential_products){
+
+        }
+        // const melting_curve = [ ["T", "dsDNA_conc",  "delta_ds"], ["41", "9.913735e-07", "1.977817e-09"], ... ]
+    }
+
+    gaussian_noise = function(N, mean=0, sd=1){
+        // https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
+        let rnorm = []
+        while (rnorm.length < N){
+            let U1 = Math.random()
+            let U2 = Math.random()
+            let Z0 = Math.sqrt(-2 * Math.log(U1)) * Math.cos(2 * Math.PI * U2)
+            let Z1 = Math.sqrt(-2 * Math.log(U1)) * Math.sin(2 * Math.PI * U2)
+            rnorm.push(mean + Z0 * sd)
+            rnorm.push(mean + Z1 * sd)
+        }
+        return rnorm.slice(0,N)
+    }
 }
 
 
@@ -294,6 +231,7 @@ class PotentialProduct{
         // finish initialization; also re-initialization
         let seq = this.get_sequence()
         let HS = HYBRIDIZER.calculate_aligned_sequence_HS(seq, seq)
+        this.seq = seq
         this.dH = HS[0]
         this.dS = HS[1]
         this.concentration_history = []  // values are objects with concentrations of various components
@@ -447,5 +385,17 @@ class PotentialProduct{
         this.concentration_history.push({"concAOtop":this.concAOtop, "concOBbot":this.concOBbot, "concABtop":this.concABtop, "concABbot":this.concABbot})
     }
 
+    get_melting_curve = function(){
 
+        let melt_rows = []
+        for (let T = 45; T <= 95; T += 0.5){
+            let conc = this.concABtop
+            melt_rows.push({
+                "T": T,
+                "hybridized": HYBRIDIZER.hybridize(conc, conc, this.dH, this.dS, T)
+            })
+        }
+
+        return melt_rows
+    }
 }
