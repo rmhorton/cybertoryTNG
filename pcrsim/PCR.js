@@ -368,19 +368,22 @@ class PotentialProduct{
 		}
 
 		this.pcr.PRIMER_CONC[this.pbsA.primer_seq] -= (d_concAOtop + d_concABtop)
-		this.pcr.PRIMER_CONC[this.pbsB.primer_seq] -= (d_concOBbot + d_concABbot)
+        this.pcr.PRIMER_CONC[this.pbsB.primer_seq] -= (d_concOBbot + d_concABbot)
 		
-		// avoid negative concentrations
-		if (this.pcr.PRIMER_CONC[this.pbsA.primer_seq] < 0) this.pcr.PRIMER_CONC[this.pbsA.primer_seq] = 0
-		if (this.pcr.PRIMER_CONC[this.pbsB.primer_seq] < 0) this.pcr.PRIMER_CONC[this.pbsB.primer_seq] = 0
-        for (let attr of ["concAOtop", "concOBbot", "concABtop", "concABbot"]){
-            if (this[attr] < 0){ this[attr] = 0 } 
-        }
-		
+		// avoid negative or NaN concentrations
+		if ((this.pcr.PRIMER_CONC[this.pbsA.primer_seq] < 0)||isNaN(this.pcr.PRIMER_CONC[this.pbsA.primer_seq]))
+            this.pcr.PRIMER_CONC[this.pbsA.primer_seq] = 0
+		if ((this.pcr.PRIMER_CONC[this.pbsB.primer_seq] < 0)||isNaN(this.pcr.PRIMER_CONC[this.pbsB.primer_seq]))
+            this.pcr.PRIMER_CONC[this.pbsB.primer_seq] = 0
+
 		this.concAOtop += d_concAOtop
 		this.concOBbot += d_concOBbot
 		this.concABtop += d_concABtop
 		this.concABbot += d_concABbot
+
+        for (let attr of ["concAOtop", "concOBbot", "concABtop", "concABbot"]){
+            if ((this[attr] < 0) || (isNaN(this[attr]))){ this[attr] = 0 } // !! 12/7
+        }
 
         this.concentration_history.push({"concAOtop":this.concAOtop, "concOBbot":this.concOBbot, "concABtop":this.concABtop, "concABbot":this.concABbot})
     }
