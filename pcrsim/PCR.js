@@ -268,14 +268,16 @@ class PotentialProduct{
     hybrid = HYBRIDIZER.hybridize  // To Do: this should use HYBRIDIZER.primingCoefficient, which takes into account salt effects and 3' mismatches.
 
     // These functions are modified from those in Hybridizer; they take dH and dS as parameters rather than raw sequences
-    fraction_template_bound = function(primer_conc, H, S, T_celsius){
+    fraction_template_bound = function(primer_conc_uM, dH, dS, T_celsius){
+        let primer_conc_M = primer_conc_uM * 1e-6  // !!! DEBUG !!! 12/8/24
         const T0 = 273.15;
         const R = 1.987;
-        let T = T_celsius + T0;
-        let G = H - T * S;
-        let K_eq = Math.exp((G)/(R * T));	// looks OK if you take off the negative sign from the exponent...
-        let fraction_bound = (1 / ((1 / primer_conc * K_eq) + 1));
-        return fraction_bound
+        let T_kelvin = parseFloat(T_celsius) + T0;
+        let dG = dH - T_kelvin * dS;
+        let K_eq = Math.exp((dG)/(R * T_kelvin));	// looks OK if you take off the negative sign from the exponent...
+        let fraction_bound = (1 / ((1 / primer_conc_M * K_eq) + 1));
+        console.log(`primer_conc_uM=${primer_conc_uM}; dH=${dH}; dS=${dS}; T_celsius=${T_celsius}\primer_conc_M=${primer_conc_M}; dG=${dG}; T_kelvin=${T_kelvin}\nfraction_bound = ${fraction_bound}`)  // !!! HACK !!! 12/8/24
+        return fraction_bound  // !!! DEBUG !!! 12/8/24
     }
 /*
     adjust_S_for_salt = function(N, K_conc, Mg_conc){
@@ -303,7 +305,7 @@ class PotentialProduct{
     primeTemplate = function(pbs, annealingTemp, targetConc){
 		// let primed_concentration = this.hybrid(this.pcr.PRIMER_CONC[pbs.primer_seq], targetConc, 
         //                                         pbs.alignment.template_dH, pbs.alignment.template_dS, annealingTemp)
-        let bound_fraction = this.fraction_template_bound(pbs.alignment.template_dH, pbs.alignment.template_dS, this.pcr.PRIMER_CONC[pbs.primer_seq], annealingTemp)
+        let bound_fraction = this.fraction_template_bound(this.pcr.PRIMER_CONC[pbs.primer_seq], pbs.alignment.template_dH, pbs.alignment.template_dS, annealingTemp)
         let primed_quantity = targetConc * bound_fraction * this.priming_coeff(pbs.alignment.A, pbs.alignment.B)
         if (primed_quantity < 0) { primed_quantity = 0 }
         return primed_quantity
@@ -312,7 +314,7 @@ class PotentialProduct{
 	primeProduct = function(pbs, annealingTemp, targetConc){
 		// let primed_concentration =  this.hybrid(this.pcr.PRIMER_CONC[pbs.primer_seq], targetConc, 
         //                                         pbs.alignment.primer_dH, pbs.alignment.primer_dS, annealingTemp)
-        let bound_fraction = this.fraction_template_bound(pbs.alignment.primer_dH, pbs.alignment.primer_dS, this.pcr.PRIMER_CONC[pbs.primer_seq], annealingTemp)
+        let bound_fraction = this.fraction_template_bound(this.pcr.PRIMER_CONC[pbs.primer_seq], pbs.alignment.primer_dH, pbs.alignment.primer_dS,  annealingTemp)
         let primed_quantity = targetConc * bound_fraction
         if (primed_quantity < 0) { primed_quantity = 0 }
         return primed_quantity

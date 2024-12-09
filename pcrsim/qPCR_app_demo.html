@@ -171,6 +171,28 @@
 
 <!--
 TO DO:
+* find the expected lengths of all products.
+* find primers that don't work:
+    STAT1 and DDX58 both fail to produce any products.
+    IFNB1 gives bands that do not move ('Trailing garbage, "scale(1.0,NaN"')
+
+The program can become corrupted so it neads to be reloaded, I noticed this when trying out the primers.
+
+pp = PCRs[1].potential_products[0]
+pbs = pp.pbsA
+seqA = pbs.primer_seq  // CAGCCTGCTGACATTGGGTA
+// dH = pbsA.alignment.template_dH; dS = pbsA.alignment.template_dS
+
+dH = -147200; dS = -393.3; primer_conc = 0.1
+
+
+primer_conc=0.1; H=-145200; S=-389.79999999999995; T_celsius=55
+
+pp = PCRs[1].potential_products[0]
+pp.fraction_template_bound(primer_conc, H, S, T_celsius)
+
+
+
 -->
 
 
