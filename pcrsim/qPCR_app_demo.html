@@ -124,9 +124,28 @@
                 return fluorescence_data_rows
             }
 
-            get_melting_curves = function(){
+            get_melting_curves = function(){ // !!! IN PROGRESS
+                let T_array = []
+                for (let T=30; T <=100; T += 0.5) T_array.push(T)
 
+                let melting_curve_rows = [ ["T"] ]  // add a column for each PCR
+                let melting_curve_cols = [ T_array ]
 
+                for (const [pcr_num, pcr_obj] of Object.entries(PCRs)){
+                    melting_curve_rows[0].push(`PCR${pcr_num}`)  // add header to first row
+                    melting_curve_cols.push(pcr_obj.get_melting_curve(T_array))
+                }
+
+                // Collect rows across columns
+                for (let i=0; i < T_array.length; i++){
+                    let my_row = []
+                    for (let col of melting_curve_cols){
+                        my_row.push(col[i])
+                    }
+                    melting_curve_rows.push(my_row)
+                }
+
+                return melting_curve_rows
             }
 
         </script>
@@ -136,7 +155,7 @@
         <table>
             <tr><th>gene</th><th>Primer A</th><th>Primer B</th><th>Product size (bp)</th></tr>
             <tr><td>MX1</td><td>CAGCCTGCTGACATTGGGTA</td><td>CATTACTGGGGACCACCACC</td><td></td></tr>
-            <tr><td>STAT1</td><td>CACCTAACGTGCTGTGCGTA</td><td>AGAATCCTCCACCAACATCC</td><td></td></tr>
+            <tr><td>STAT1</td><td>CACCTAACGTGCTGTGCGTA</td><td>GGATGTTGGTGGAGGATTCT</td><td></td></tr>
             <tr><td>PSMB8</td><td>TTACCTGCTTGGCACCATGT</td><td>GCTGCCGACACTGAAATACG</td><td></td></tr>
             <tr><td>PSMB9</td><td>ACAGCCTTTTGCCATTGGTG</td><td>GCAATAGCGTCTGTGGTGAAG</td><td></td></tr>
             <tr><td>TAP1</td><td>CCAGTGGTCTGTTGACTCCC</td><td>AATGTCAGCCCCTGTAGCAC</td><td></td></tr>
@@ -146,6 +165,8 @@
             <tr><td>DDX58</td><td>AGAGCACTTGTGGACGCTTTA</td><td>TTGTTTTGCCACGTCCAGTC</td><td></td></tr>
             <tr><td>GAPDH</td><td>GCAAATTCCATGGCACCGTC</td><td>TCGCCCCACTTGATTTTGGA</td><td></td></tr>
         </table>
+
+        <!--  STAT1 primer B was originally backwards: AGAATCCTCCACCAACATCC -->
 
         <hr />
         <p> Primers and reaction conditions you specify here will be run on all patient samples.</p>
@@ -161,7 +182,7 @@
             <div id="status_div">&nbsp;</div>
             <br />
             <input type="button" value="fluorescence data by cycle" onclick="download_data_as_file(get_fluorescence_data_by_cycle(), 'fluorescence_data_per_cycle')" />
-            <input type="button" value="melting curve" onclick="" />
+            <input type="button" value="melting curve" onclick="download_data_as_file(get_melting_curves(), 'qPCR_melting_curves')" />
             <input type="button" value="run gel" onclick="GEL.load_svg(GEL_DATA)" />
         </form>
         <div id="gel_display"></div>
@@ -173,10 +194,17 @@
 TO DO:
 * find the expected lengths of all products.
 * find primers that don't work:
-    STAT1 and DDX58 both fail to produce any products.
-    IFNB1 gives bands that do not move ('Trailing garbage, "scale(1.0,NaN"')
+    STAT1 and DDX58 fail to produce any products.
+        STAT1 is actually in fairly high concentration. If I take the reverse complement of STAT1 primer B ("GGATGTTGGTGGAGGATTCT") I get clean bands.
+        DDX58 is in low concentration, but IFIH1 is similarly low concentration and we can detect that fine.
+            Taking the reverse complement of primer B (GACTGGACGTGGCAAAACAA) didn't help.
+            Neither did reverse complement of primer A: TAAAGCGTCCACAAGTGCTCT
+            Neither did reversing both primers.
+    IFNB1 produces extremely faint bands in patients 4 & 6-10; you can see them better if you plot the fluorescence data.
+        (It makes strong bands if you change polymerase_survival_per_cycle = 1.00)
+        This is the gene present in the lowest concentration by far (0 in the patients where we never see a band.)
 
-The program can become corrupted so it neads to be reloaded, I noticed this when trying out the primers.
+Is this still true?: The program can become corrupted so it neads to be reloaded, I noticed this when trying out the primers.
 
 pp = PCRs[1].potential_products[0]
 pbs = pp.pbsA
@@ -188,10 +216,27 @@ dH = -147200; dS = -393.3; primer_conc = 0.1
 
 primer_conc=0.1; H=-145200; S=-389.79999999999995; T_celsius=55
 
+PCRs[1].potential_products[0].seq.length
+// MX1: 869
+// STAT1: 174
+// PSMB8: 307
+// PSMB9: 388
+// TAP1: 1471
+// TAP2: 1127
+// IFNB1: 112
+// IFIH1: 543
+// DDX58: ???
+// GAPDH: 266
+
 pp = PCRs[1].potential_products[0]
 pp.fraction_template_bound(primer_conc, H, S, T_celsius)
 
+// GAPDH: 'GCAAATTCCATGGCACCGTCCAGGGGCGGGCGCAGGCCGGATGTGTTCGCGCCGCTGCGGGCCGAGCCACATCGCTCAGACACCATGGGGAAGGTGAAGGTCGGAGTCAACGGATTTGGTCGTATTGGGCGCCTGGTCACCAGGGCTGCTTTTAACTCTGGTAAAGTGGATATTGTTGCCATCAATGACCCCTTCATTGACCTCAACTACATGGTTTACATGTTCCAATATGATTCCACCCATGGCTCGCCCCACTTGATTTTGGA'
+// IFNB1: 'CTTTGCTCTGGCACAACAGGTTGCTCTGGCACAACAGGTAGTAGGCGACACTGTTCGTGTTGTCAACATGACCAACAAGTGTCTCCTCCAAGTGGAGAAGCACAACAGGAGA'
+// STAT1: 'CACCTAACGTGCTGTGCGTAGGCTGCACCGCCGCGCCCCCGCCTAGCCCTTCCGGATCCTGCGCGCAGAAAAGTTTCATTTGCTGTATGCCATCCTCGAGAGCTGTCTAGGTTAACGTTCGCACTCTGTGTATATAACCTCGACAGTCTTGGCAGGATGTTGGTGGAGGATTCT'
 
+pp = PCRs[1].potential_products[0]
+pp.get_melting_curve()
 
 -->
 

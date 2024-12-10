@@ -181,13 +181,23 @@ class PCR{
         return fluorescence_history
     }
 
-    get_melting_curve = function(){
-        let melting_curve = [ ["T", "dsDNA_conc",  "delta_ds"] ]
+    get_melting_curve = function(T_array){ // !!! In progress !!! NOTE: It would be easier to just return the column arrays.
+        let FLUORESCENCE_COEFF = 1e-3
+        let BACKGROUND = 2e-11
+        let NOISE_SCALE = 4e-12
 
+        let K_conc=100; let Mg_conc=2; // !!! TEMP: get from solution
+
+        // collect total hyb at each T
+        let hyb_array = this.gaussian_noise(T_array.length, BACKGROUND, NOISE_SCALE)
         for (let pp of this.potential_products){
-
+            let pp_melt = pp.get_melting_curve(T_array, K_conc, Mg_conc)
+            for (let i=0; i<T_array.length; i++){
+                hyb_array[i] += pp_melt[i]
+            }
         }
-        // const melting_curve = [ ["T", "dsDNA_conc",  "delta_ds"], ["41", "9.913735e-07", "1.977817e-09"], ... ]
+        return hyb_array
+        
     }
 
     gaussian_noise = function(N, mean=0, sd=1){
@@ -265,19 +275,19 @@ class PotentialProduct{
     // hybrid = function(dH, dS, denaturationTemp, topConc, botConc){
     //     HYBRIDIZER.hybridize(dH, dS, denaturationTemp, topConc, botConc)
     // }
-    hybrid = HYBRIDIZER.hybridize  // To Do: this should use HYBRIDIZER.primingCoefficient, which takes into account salt effects and 3' mismatches.
+    // hybrid = HYBRIDIZER.hybridize  // To Do: this should use HYBRIDIZER.primingCoefficient, which takes into account salt effects and 3' mismatches.
 
     // These functions are modified from those in Hybridizer; they take dH and dS as parameters rather than raw sequences
     fraction_template_bound = function(primer_conc_uM, dH, dS, T_celsius){
-        let primer_conc_M = primer_conc_uM * 1e-6  // !!! DEBUG !!! 12/8/24
+        let primer_conc_M = primer_conc_uM * 1e-6
         const T0 = 273.15;
         const R = 1.987;
         let T_kelvin = parseFloat(T_celsius) + T0;
         let dG = dH - T_kelvin * dS;
-        let K_eq = Math.exp((dG)/(R * T_kelvin));	// looks OK if you take off the negative sign from the exponent...
+        let K_eq = Math.exp((dG)/(R * T_kelvin));
         let fraction_bound = (1 / ((1 / primer_conc_M * K_eq) + 1));
-        console.log(`primer_conc_uM=${primer_conc_uM}; dH=${dH}; dS=${dS}; T_celsius=${T_celsius}\primer_conc_M=${primer_conc_M}; dG=${dG}; T_kelvin=${T_kelvin}\nfraction_bound = ${fraction_bound}`)  // !!! HACK !!! 12/8/24
-        return fraction_bound  // !!! DEBUG !!! 12/8/24
+        // console.log(`primer_conc_uM=${primer_conc_uM}; dH=${dH}; dS=${dS}; T_celsius=${T_celsius}\primer_conc_M=${primer_conc_M}; dG=${dG}; T_kelvin=${T_kelvin}\nfraction_bound = ${fraction_bound}`)  // !!! HACK !!! 12/8/24
+        return fraction_bound
     }
 /*
     adjust_S_for_salt = function(N, K_conc, Mg_conc){
@@ -390,17 +400,14 @@ class PotentialProduct{
         this.concentration_history.push({"concAOtop":this.concAOtop, "concOBbot":this.concOBbot, "concABtop":this.concABtop, "concABbot":this.concABbot})
     }
 
-    get_melting_curve = function(){
-
-        let melt_rows = []
-        for (let T = 45; T <= 95; T += 0.5){
-            let conc = this.concABtop
-            melt_rows.push({
-                "T": T,
-                "hybridized": HYBRIDIZER.hybridize(conc, conc, this.dH, this.dS, T)
-            })
+    get_melting_curve = function(T_array, K_conc=100, Mg_conc=2){
+        // PCRs[1].potential_products[0].get_melting_curve()
+        let dS_salt_adjustment = HYBRIDIZER.adjust_S_for_salt(this.seq.length, K_conc, Mg_conc)
+        let hyb_array = []
+        for (let T of T_array){
+            let conc = this.concABtop // * 1e-6  ?
+            hyb_array.push(HYBRIDIZER.hybridize(conc, conc, this.dH, this.dS + dS_salt_adjustment, T))
         }
-
-        return melt_rows
+        return hyb_array
     }
 }
