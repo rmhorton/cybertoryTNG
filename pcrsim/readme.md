@@ -30,4 +30,3 @@ The first step (BLAST) is the one that really requires running on a server. But 
 
 The quantitative PCR version simply tracks the accumulation of product at each cycle. It currently does not have a very sophisticated simulation of the melting curve, so I am working on that.
 
-The Javascript app in "dna_melting_deriv_hmm_app.html" was written by ChatGPT, following my direction to try to compute a melting curve for a short DNA sequence using nearest neighbot thermodynamics together with the Viterbi algorithm to find the most likely state of each base pair at a given temperature, depending on the melting state of its neighbors. ChatGPT also wroth the accompanying user manual, including references. I believe this is a novel approach to simulating a melting curve, and ChatGPT agrees, but if we stole your idea please let me know!
