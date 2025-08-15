@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNA Melting Curve Simulator — Nearest‑Neighbor</title>
+  <style>
+    :root {
+      --bg: #0f172a;      /* slate-900 */
+      --panel: #111827;   /* gray-900 */
+      --muted: #9ca3af;   /* gray-400 */
+      --text: #e5e7eb;    /* gray-200 */
+      --accent: #38bdf8;  /* sky-400 */
+      --accent-2: #a78bfa;/* violet-400 */
+      --ok: #22c55e;      /* green-500 */
+      --warn: #ef4444;    /* red-500 */
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: radial-gradient(1200px 600px at 20% -10%, #1f2937, transparent), var(--bg);
+      color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 28px; margin: 10px 0 4px; letter-spacing: 0.2px; }
+    .sub { color: var(--muted); margin-bottom: 18px; }
+    .grid { display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    .card .hd { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: 600; color: #cbd5e1; }
+    .card .bd { padding: 14px 16px; }
+
+    textarea, input[type="number"], input[type="text"] {
+      width: 100%; background: #0b1220; border: 1px solid rgba(255,255,255,0.08); color: var(--text);
+      border-radius: 12px; padding: 10px 12px; outline: none; font-size: 14px;
+    }
+    textarea { resize: vertical; min-height: 110px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 2px 6px; }
+    .inline { display: flex; align-items: center; gap: 10px; }
+    .btns { display: flex; gap: 10px; margin-top: 10px; }
+    button { cursor: pointer; border: 1px solid rgba(255,255,255,0.12); background: linear-gradient(180deg, rgba(56,189,248,0.25), rgba(56,189,248,0.15)); color: white; border-radius: 12px; padding: 10px 12px; font-weight: 600; }
+    button.secondary { background: linear-gradient(180deg, rgba(167,139,250,0.2), rgba(167,139,250,0.1)); }
+
+    .slider { width: 100%; }
+    .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+    .stat .pill { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); padding: 8px 10px; border-radius: 12px; font-size: 13px; text-align: center; }
+
+    canvas { width: 100%; height: 300px; background: #0b1220; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+
+    .strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(6px, 1fr)); gap: 2px; align-items: center; }
+    .bp { height: 18px; border-radius: 3px; }
+    .legend { display:flex; align-items:center; gap:10px; font-size:12px; color: var(--muted); margin-top: 6px; }
+    .swatch { width: 20px; height: 10px; border-radius: 2px; border:1px solid rgba(255,255,255,0.15); }
+
+    .small { font-size: 12px; color: var(--muted); }
+    .error { color: #fecaca; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); padding: 8px 10px; border-radius: 10px; margin-top: 8px; display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>DNA Melting Curve Simulator <span class="small">(Nearest‑Neighbor)</span></h1>
+    <div class="sub">Interactive base‑by‑base melting map using SantaLucia nearest‑neighbor thermodynamics. Paste a sequence, set conditions, and drag the temperature.</div>
+
+    <div class="grid">
+      <!-- Left: controls -->
+      <div class="card">
+        <div class="hd">Inputs</div>
+        <div class="bd">
+          <label for="seq">DNA sequence (A/T/G/C)</label>
+          <textarea id="seq" spellcheck="false" placeholder="e.g. ATGCGCATTAATCGGATGCC"></textarea>
+
+          <div class="row">
+            <div>
+              <label for="salt">[Na<sup>+</sup>] (M)</label>
+              <input id="salt" type="number" min="0.001" step="0.001" value="0.050" />
+            </div>
+            <div>
+              <label for="conc">Strand concentration (M)</label>
+              <input id="conc" type="number" min="1e-12" step="1e-7" value="0.0000005" />
+            </div>
+          </div>
+
+          <div class="row3">
+            <div>
+              <label for="win">Window size (bp)</label>
+              <input id="win" type="number" min="5" max="51" step="2" value="15" />
+            </div>
+            <div>
+              <label for="k">Slope k (°C) for soft melt</label>
+              <input id="k" type="number" min="0.1" step="0.1" value="0.8" />
+            </div>
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode" style="width:100%; background:#0b1220; color:var(--text); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 12px;">
+                <option value="soft" selected>Soft (probabilistic)</option>
+                <option value="hard">Hard (threshold)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="btns">
+            <button id="demo">Load demo</button>
+            <button class="secondary" id="clear">Clear</button>
+          </div>
+
+          <div class="error" id="err"></div>
+        </div>
+      </div>
+
+      <!-- Right: visualization -->
+      <div class="card">
+        <div class="hd">Visualization</div>
+        <div class="bd">
+          <label>Temperature: <span id="tLabel">70</span>°C</label>
+          <input id="temp" class="slider" type="range" min="20" max="100" step="0.5" value="70" />
+
+          <div class="stat">
+            <div class="pill">Fraction melted: <span id="frac">—</span></div>
+            <div class="pill">Median local T<sub>m</sub>: <span id="medianTm">—</span> °C</div>
+            <div class="pill">Length: <span id="len">—</span> bp</div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <canvas id="chart" width="900" height="300"></canvas>
+          </div>
+
+          <div style="margin-top:12px;">
+            <div class="legend">
+              <div class="swatch" style="background:#1d4ed8"></div>
+              <div>0% melted</div>
+              <div class="swatch" style="background:#ef4444"></div>
+              <div>100% melted</div>
+            </div>
+            <div class="strip" id="strip" style="margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="small" style="margin-top:10px; opacity:0.9;">
+      Notes: Uses SantaLucia nearest‑neighbor ΔH/ΔS (kcal/mol, cal/(mol·K)). T<sub>m</sub> for each local window is computed as: T<sub>m</sub> = (ΔH·1000)/(ΔS + R·ln(Ct)) − 273.15 + 16.6·log<sub>10</sub>[Na<sup>+</sup>], with Ct = concentration/4 for non‑self‑complementary duplexes. “Soft” mode colors bases by logistic melt probability p(T) = 1/(1+exp(−(T − Tm)/k)); “Hard” uses T ≥ Tm.
+    </div>
+  </div>
+
+  <script>
+    // --- Nearest-neighbor parameters (SantaLucia 1998) ---
+    // ΔH in kcal/mol, ΔS in cal/(mol·K)
+    const NN = {
+      'AA': [-7.9, -22.2], 'TT': [-7.9, -22.2],
+      'AT': [-7.2, -20.4], 'TA': [-7.2, -21.3],
+      'CA': [-8.5, -22.7], 'TG': [-8.5, -22.7],
+      'GT': [-8.4, -22.4], 'AC': [-8.4, -22.4],
+      'CT': [-7.8, -21.0], 'AG': [-7.8, -21.0],
+      'GA': [-8.2, -22.2], 'TC': [-8.2, -22.2],
+      'CG': [-10.6, -27.2], 'GC': [-9.8, -24.4],
+      'GG': [-8.0, -19.9], 'CC': [-8.0, -19.9]
+    };
+
+    const R = 1.987; // cal/(mol·K)
+    const log10 = (x) => Math.log(x) / Math.LN10;
+
+    function sanitizeSeq(s) {
+      return (s || '').toUpperCase().replace(/[^ATGC]/g, '');
+    }
+
+    function computeTm(subseq, concM, saltM) {
+      // Initiation terms (SantaLucia). These are commonly used defaults.
+      let dH = 0.2;   // kcal/mol
+      let dS = -5.7;  // cal/(mol·K)
+
+      if (subseq.length < 2) return NaN;
+
+      // Terminal A/T adjustments (simple approximation)
+      const first = subseq[0], last = subseq[subseq.length - 1];
+      if (first === 'A' || first === 'T') { dH += 2.3; dS += 4.1; }
+      if (last  === 'A' || last  === 'T') { dH += 2.3; dS += 4.1; }
+
+      for (let i = 0; i < subseq.length - 1; i++) {
+        const dinuc = subseq[i] + subseq[i + 1];
+        const p = NN[dinuc];
+        if (!p) return NaN; // invalid base
+        dH += p[0];
+        dS += p[1];
+      }
+
+      const Ct = concM / 4; // non-self-complementary approximation
+      let TmK = (dH * 1000) / (dS + R * Math.log(Ct));
+      let TmC = TmK - 273.15 + 16.6 * log10(saltM);
+      return TmC;
+    }
+
+    function localTms(seq, concM, saltM, windowSize) {
+      const n = seq.length;
+      const half = Math.floor(windowSize / 2);
+      const tms = new Array(n).fill(NaN);
+      for (let i = 0; i < n; i++) {
+        const start = Math.max(0, i - half);
+        const end = Math.min(n, start + windowSize);
+        const subseq = seq.slice(start, end);
+        tms[i] = computeTm(subseq, concM, saltM);
+      }
+      return tms;
+    }
+
+    function meltProb(T, Tm, k) {
+      return 1 / (1 + Math.exp(-(T - Tm) / k));
+    }
+
+    function computeFraction(T, tms, mode, k) {
+      let sum = 0, n = 0;
+      for (let i = 0; i < tms.length; i++) {
+        const tm = tms[i];
+        if (!isFinite(tm)) continue;
+        n++;
+        if (mode === 'hard') sum += (T >= tm) ? 1 : 0;
+        else sum += meltProb(T, tm, k);
+      }
+      return n ? (sum / n) : 0;
+    }
+
+    function colorForProb(p) {
+      // Interpolate from blue (#1d4ed8) to red (#ef4444)
+      const c1 = [0x1d, 0x4e, 0xd8];
+      const c2 = [0xef, 0x44, 0x44];
+      const mix = c1.map((v, i) => Math.round(v + (c2[i] - v) * p));
+      return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+    }
+
+    function drawStrip(container, tms, T, mode, k) {
+      container.innerHTML = '';
+      for (let i = 0; i < tms.length; i++) {
+        const tm = tms[i];
+        const p = !isFinite(tm) ? 0 : (mode === 'hard' ? (T >= tm ? 1 : 0) : meltProb(T, tm, k));
+        const el = document.createElement('div');
+        el.className = 'bp';
+        el.title = `i=${i+1}  Tm=${isFinite(tm) ? tm.toFixed(2) : '—'}°C  p=${p.toFixed(2)}`;
+        el.style.background = colorForProb(p);
+        container.appendChild(el);
+      }
+    }
+
+    function drawCurve(canvas, seq, tms, Tmin, Tmax, mode, k, concM, saltM) {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // axes & grid
+      ctx.fillStyle = '#0b1220';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = H - (H * (i / 5));
+        ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(W - 10, y); ctx.stroke();
+      }
+      // axes labels
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillText('Fraction melted', 10, 14);
+      ctx.fillText(`${Tmin}°C`, 40, H - 8);
+      ctx.fillText(`${Tmax}°C`, W - 40, H - 8);
+
+      // curve
+      const N = 200;
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const T = Tmin + (i / N) * (Tmax - Tmin);
+        const f = computeFraction(T, tms, mode, k);
+        const x = 40 + (W - 60) * (i / N);
+        const y = (H - 20) - (H - 40) * f;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // ticks on y
+      ctx.fillStyle = '#9ca3af';
+      for (let i = 0; i <= 5; i++) {
+        const f = i / 5;
+        const y = (H - 20) - (H - 40) * f;
+        ctx.fillText(f.toFixed(1), 8, y + 4);
+      }
+    }
+
+    // --- UI wiring ---
+    const seqEl = document.getElementById('seq');
+    const saltEl = document.getElementById('salt');
+    const concEl = document.getElementById('conc');
+    const winEl  = document.getElementById('win');
+    const kEl    = document.getElementById('k');
+    const modeEl = document.getElementById('mode');
+    const tempEl = document.getElementById('temp');
+
+    const fracEl = document.getElementById('frac');
+    const medTmEl= document.getElementById('medianTm');
+    const lenEl  = document.getElementById('len');
+    const tLabel = document.getElementById('tLabel');
+    const strip  = document.getElementById('strip');
+    const chart  = document.getElementById('chart');
+    const errEl  = document.getElementById('err');
+
+    const demoBtn= document.getElementById('demo');
+    const clearBtn= document.getElementById('clear');
+
+    let state = {
+      seq: '', tms: [], Tmin: 20, Tmax: 100
+    };
+
+    function median(arr) {
+      const a = arr.filter(x => isFinite(x)).slice().sort((x,y)=>x-y);
+      if (!a.length) return NaN;
+      const m = Math.floor(a.length/2);
+      return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
+    }
+
+    function recompute() {
+      errEl.style.display = 'none';
+      let seq = sanitizeSeq(seqEl.value);
+      if (!seq.length) {
+        errEl.textContent = 'Please enter a sequence containing only A/T/G/C.';
+        errEl.style.display = 'block';
+        state.seq = ''; state.tms = [];
+        fracEl.textContent = '—'; medTmEl.textContent = '—'; lenEl.textContent = '—';
+        drawStrip(strip, [], +tempEl.value, modeEl.value, +kEl.value);
+        const ctx = chart.getContext('2d'); ctx.clearRect(0,0,chart.width, chart.height);
+        return;
+      }
+      if (seq.length !== seqEl.value.length) {
+        // show a gentle warning but keep sanitized
+        errEl.textContent = 'Non-ATGC characters were removed from the sequence.';
+        errEl.style.display = 'block';
+      }
+      const salt = Math.max(1e-6, +saltEl.value || 0.05);
+      const conc = Math.max(1e-12, +concEl.value || 5e-7);
+      let win = Math.max(5, Math.min(51, Math.floor(+winEl.value || 15)));
+      if (win % 2 === 0) win += 1; // enforce odd for centering
+
+      state.seq = seq;
+      state.tms = localTms(seq, conc, salt, win);
+      lenEl.textContent = String(seq.length);
+      medTmEl.textContent = isFinite(median(state.tms)) ? median(state.tms).toFixed(2) : '—';
+
+      updateVisuals();
+    }
+
+    function updateVisuals() {
+      const T = +tempEl.value;
+      const k = Math.max(0.05, +kEl.value || 0.8);
+      const mode = modeEl.value;
+      tLabel.textContent = T;
+
+      const f = computeFraction(T, state.tms, mode, k);
+      fracEl.textContent = isFinite(f) ? f.toFixed(3) : '—';
+
+      drawStrip(strip, state.tms, T, mode, k);
+      drawCurve(chart, state.seq, state.tms, state.Tmin, state.Tmax, mode, k);
+    }
+
+    ;['input','change'].forEach(ev => {
+      seqEl.addEventListener(ev, recompute);
+      saltEl.addEventListener(ev, recompute);
+      concEl.addEventListener(ev, recompute);
+      winEl.addEventListener(ev, recompute);
+      kEl.addEventListener(ev, updateVisuals);
+      modeEl.addEventListener(ev, updateVisuals);
+      tempEl.addEventListener(ev, updateVisuals);
+    });
+
+    demoBtn.addEventListener('click', () => {
+      seqEl.value = 'ATGCGCATTAATCGGATGCCGCTTAGCTAGGCGATATATTTGCGCGCGGATCCGATATGCGCGTATATATGC';
+      recompute();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      seqEl.value = '';
+      recompute();
+    });
+
+    // Initialize with a short demo sequence
+    seqEl.value = 'ATGCGCATTAATCGGATGCC';
+    recompute();
+  </script>
+</body>
+</html>
