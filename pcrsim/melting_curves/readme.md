@@ -16,7 +16,7 @@ This is a work in progress; these approaches have not yet been compared to exper
 The goal is to devlop melting curve simulation code suitable for use in the quantitative PCR simulation.
 
 ## Student Project: Develop an improved [DNA Melting curve](https://en.wikipedia.org/wiki/Melting_curve_analysis) for the Cybertory [qPCR simulator](https://github.com/rmhorton/cybertoryTNG/tree/main/pcrsim)
-The current [vibe-coded prototypes](https://github.com/rmhorton/cybertoryTNG/tree/main/pcrsim/melting_curves) were written with vibe coding using chatGPT. They need improvement and testing.
+The current [prototypes](https://github.com/rmhorton/cybertoryTNG/tree/main/pcrsim/melting_curves) were written using chatGPT. They need improvement and testing.
 These prototypes all seem to give reasonable results, but they have not been evaluated thoroughly, and we should probaby combine parts from several of them in the final version.
 None of this work has been integrated into the qPCR simulator yet.
 Many of the goals below will require modifying the code, e.g., to support curve fitting or testing. Much of this should be possible using vibe coding.
