@@ -66,7 +66,7 @@ This application must be coded in Javascript to run client-side in a browser. Yo
 
 ## Deliverables
 
-	* HTML file for a stand-alone melting curve app, with UI.
-	* JS file for the code to compute the melting curve (this will be reused by the PCR app).
-	* A user guide (Markdown or HTML) - may include illustrations.
-	* Word document for a student exercise on melting curves.
+* HTML file for a stand-alone melting curve app, with UI.
+* JS file for the code to compute the melting curve (this will be reused by the PCR app).
+* A user guide (Markdown or HTML) - may include illustrations.
+* Word document for a student exercise on melting curves.
