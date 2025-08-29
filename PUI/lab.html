@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Virtual Molbio Lab – Inkscape Ready</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg id="workspace"></svg>
+
+<!-- JS files -->
+<script src="tube.js"></script>
+<script src="rack.js"></script>
+<script src="trash.js"></script>
+<script src="jar.js"></script>
+<script src="pipettor.js"></script>
+<script src="main.js"></script>
+</body>
+<!--All lab objects have now been refactored to be Inkscape-ready, with this.group.innerHTML placeholders for SVG. 
+Behaviors from the previous fully working version are fully wired: tubes snap to empty slots, racks and tubes are draggable, 
+TubeJar spawns tubes, 
+TrashCan deletes tubes at its opening with lid animation, and the pipettor aspirates/dispenses fluid. 
+You can now easily replace the placeholders with SVG from Inkscape. -->
+</html>

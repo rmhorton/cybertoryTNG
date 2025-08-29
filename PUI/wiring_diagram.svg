@@ -1,0 +1,84 @@
+<svg width="1000" height="600" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box { fill:#fef3c7; stroke:#b45309; stroke-width:2; rx:10; ry:10; }
+    .tube { fill:#fff0f6; stroke:#d63384; stroke-width:2; rx:8; ry:8; }
+    .rack { fill:#e0f2fe; stroke:#1d4ed8; stroke-width:2; rx:10; ry:10; }
+    .trash { fill:#f3f4f6; stroke:#374151; stroke-width:2; rx:10; ry:10; }
+    .pipettor { fill:#fefce8; stroke:#b45309; stroke-width:2; rx:10; ry:10; }
+    .label { font-family:Arial, sans-serif; font-size:14px; text-anchor:middle; }
+    .arrow { fill:none; stroke:#1d4ed8; stroke-width:2; marker-end:url(#arrowhead); }
+    .explain { font-family:Arial, sans-serif; font-size:12px; fill:#111827; }
+  </style>
+
+  <!-- Arrowhead definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1d4ed8"/>
+    </marker>
+  </defs>
+
+  <!-- TubeJar -->
+  <g id="tubejar">
+    <rect x="50" y="50" width="120" height="60" class="box"/>
+    <text x="110" y="85" class="label">Tube Jar</text>
+  </g>
+
+  <!-- Rack -->
+  <g id="rack">
+    <rect x="250" y="180" width="300" height="100" class="rack"/>
+    <text x="400" y="210" class="label">Rack</text>
+
+    <!-- Tubes in rack (example) -->
+    <g id="tube1">
+      <rect x="260" y="190" width="30" height="50" class="tube"/>
+      <text x="275" y="225" class="label">T1</text>
+    </g>
+    <g id="tube2">
+      <rect x="300" y="190" width="30" height="50" class="tube"/>
+      <text x="315" y="225" class="label">T2</text>
+    </g>
+    <g id="tube3">
+      <rect x="340" y="190" width="30" height="50" class="tube"/>
+      <text x="355" y="225" class="label">T3</text>
+    </g>
+  </g>
+
+  <!-- TrashCan -->
+  <g id="trash">
+    <rect x="700" y="180" width="120" height="60" class="trash"/>
+    <text x="760" y="210" class="label">TrashCan</text>
+  </g>
+
+  <!-- Pipettor -->
+  <g id="pipettor">
+    <rect x="550" y="50" width="120" height="60" class="pipettor"/>
+    <text x="610" y="85" class="label">Pipettor</text>
+  </g>
+
+  <!-- Arrows showing interactions -->
+  <line x1="110" y1="110" x2="275" y2="190" class="arrow"/> <!-- spawn T1 -->
+  <line x1="110" y1="110" x2="315" y2="190" class="arrow"/> <!-- spawn T2 -->
+  <line x1="110" y1="110" x2="355" y2="190" class="arrow"/> <!-- spawn T3 -->
+  <line x1="610" y1="110" x2="275" y2="190" class="arrow"/> <!-- aspirate/dispense T1 -->
+  <line x1="610" y1="110" x2="315" y2="190" class="arrow"/> <!-- aspirate/dispense T2 -->
+  <line x1="610" y1="110" x2="355" y2="190" class="arrow"/> <!-- aspirate/dispense T3 -->
+  <line x1="320" y1="220" x2="760" y2="180" class="arrow"/> <!-- delete tube -->
+
+  <!-- Arrow labels -->
+  <text x="180" y="160" class="explain">spawn tubes</text>
+  <text x="500" y="120" class="explain" text-anchor="middle">aspirate/dispense</text>
+  <text x="530" y="200" class="explain">delete tube</text>
+
+  <!-- Explanatory box -->
+  <g>
+    <rect x="50" y="300" width="850" height="280" fill="#fefefe" stroke="#6b7280" stroke-width="1" rx="6" ry="6"/>
+    <text x="60" y="320" class="explain">Explanations:</text>
+    <text x="60" y="340" class="explain">• TubeJar: click to spawn new tubes into the workspace.</text>
+    <text x="60" y="360" class="explain">• Tubes: draggable; snap to empty slots in the rack.</text>
+    <text x="60" y="380" class="explain">• Rack: contains slots; tubes move with the rack.</text>
+    <text x="60" y="400" class="explain">• TrashCan: dropping a tube onto the opening deletes it.</text>
+    <text x="60" y="420" class="explain">• Pipettor: draggable; detects tube under tip for aspirate/dispense.</text>
+    <text x="60" y="440" class="explain">• Arrows indicate interactions: spawn, drag/snap, aspirate/dispense, delete.</text>
+    <text x="60" y="460" class="explain">• Each group (#tubejar, #tube1, etc.) can be replaced with Inkscape artwork.</text>
+  </g>
+</svg>
