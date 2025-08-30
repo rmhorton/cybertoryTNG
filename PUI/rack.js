@@ -1,11 +1,12 @@
 // ===================== Rack =====================
 class Rack {
-  constructor(x, y, rows = 2, cols = 8, spacing = 34) {
+  constructor(x, y, rows = 2, cols = 8, spacing = 34, margin=16) {
     this.tx = x;
     this.ty = y;
     this.rows = rows;
     this.cols = cols;
     this.spacing = spacing;
+    this.margin = margin;
 
     // SVG group for the rack
     this.group = svg.append('g')
@@ -18,15 +19,15 @@ class Rack {
 
     // Placeholder artwork (replace with Inkscape SVG)
     this.group.node().innerHTML = `
-      <rect class="rack-base" x="-16" y="-16" width="${cols*spacing+32}" height="${rows*spacing+32}" rx="10" ry="10"/>
+      <rect class="rack-base" x="-16" y="-16" width="${cols*spacing+2*margin}" height="${rows*spacing+2*margin}" rx="10" ry="10"/>
     `;
 
     // slots: store local coords and occupancy
     this.slots = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const lx = c * spacing;
-        const ly = r * spacing;
+        const lx = margin + c * spacing;
+        const ly = margin + r * spacing;
         const circle = this.group.append('circle')
           .attr('class', 'slot')
           .attr('cx', lx)

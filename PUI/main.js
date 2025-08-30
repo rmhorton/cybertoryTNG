@@ -41,7 +41,7 @@ for (let i = 0; i < 8; i++) {
 }
 
 // ---- Trash Can ----
-LAB.trash = new TrashCan(250, 100);
+LAB.trash = new TrashCan(80, 250);
 
 // ---- Tube Jar ----
 LAB.jar = new TubeJar(40, 60);
