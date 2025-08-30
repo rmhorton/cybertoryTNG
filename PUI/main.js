@@ -1,38 +1,53 @@
-// ================== main.js ==================
+// main.js
+// Assumes: tube.js, rack.js, pipettor.js, trashcan.js, tubejar.js are loaded first
+
+// ---- Global workspace ----
 const svg = d3.select('#workspace')
   .attr('viewBox', `0 0 ${window.innerWidth} ${window.innerHeight * 0.95}`)
   .attr('preserveAspectRatio', 'xMinYMin meet');
 
-// ---- Utilities ----
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+// ---- Global lab registry ----
+const LAB = {
+  racks: [],
+  tubes: [],
+  pipettor: null,
+  jar: null,
+  trash: null
+};
 
-// Global registry
-const LAB = { tubes: [], racks: [], trash: null, jar: null, pipettor: null };
-
-// ============== Create racks ==============
+// ---- Instantiate racks ----
 const rackA = new Rack(260, 110, 2, 8);
 const rackB = new Rack(260, 300, 2, 8);
 LAB.racks.push(rackA, rackB);
 
-// ============== Create tubes ==============
-// Random reagent tubes in rackA first 3 slots
+// ---- Pre-fill some reagent tubes in rackA ----
 function randVol() { return Math.floor(100 + Math.random() * 100); }
 const reagents = [
-  new Tube(40, 80, 'EnzA', randVol()),
-  new Tube(80, 80, 'Buffer', randVol()),
-  new Tube(120, 80, 'dNTP', randVol())
+  new Tube(0, 0, 'EnzA', randVol()),
+  new Tube(0, 0, 'Buffer', randVol()),
+  new Tube(0, 0, 'dNTP', randVol())
 ];
-reagents.forEach((t, i) => t.attachToRack(rackA, rackA.slots[i]));
+// Attach to first 3 slots of rackA
+reagents.forEach((t, i) => {
+  t.attachToRack(rackA, rackA.slots[i]);
+  LAB.tubes.push(t);
+});
 
-// Empty reaction tubes in rackB first row
+// ---- Pre-fill empty reaction tubes in rackB first row ----
 for (let i = 0; i < 8; i++) {
-  const t = new Tube(40 + i * 24, 220, `R${i + 1}`, 0);
+  const t = new Tube(0, 0, `R${i + 1}`, 0);
   t.attachToRack(rackB, rackB.slots[i]);
+  LAB.tubes.push(t);
 }
 
-// ============== TubeJar, TrashCan, Pipettor ==============
-LAB.trash = new TrashCan(700, 360);
-LAB.jar = new TubeJar(40, 60);
-LAB.pipettor = new Pipettor(560, 120);
+// ---- Trash Can ----
+LAB.trash = new TrashCan(250, 100);
 
-console.log('Lab ready: racks & tubes draggable, tube jar spawns, trash deletes at opening, pipettor aspirates/dispenses.');
+// ---- Tube Jar ----
+LAB.jar = new TubeJar(40, 60);
+
+// ---- Pipettor ----
+LAB.pipettor = new Pipettor(560, 120, LAB);
+
+// ---- Console message for confirmation ----
+console.log('Prototype ready: racks draggable, tubes draggable (snap to empty slots), tube jar spawns, trash deletes only at opening, pipettor aspirate/dispense with tip targeting.');

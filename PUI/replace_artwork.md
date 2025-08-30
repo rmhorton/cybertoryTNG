@@ -29,6 +29,18 @@ This guide explains how to replace the placeholder SVG artwork for lab objects (
 4. Group all elements (`Ctrl+G`).
 5. Select the group and copy as **SVG code** (File → Save As → Plain SVG, or `Edit → XML Editor → Copy`).
 
+
+
+To assign an ID to an item or group in Inkscape, follow these steps:
+* Select the object or group:
+* Use the Selection tool (F1) to click on the item or group you want to assign an ID to.
+* Open Object Properties:
+* Go to Object > Object Properties (or press Shift + Ctrl + O). This will open the Object Properties dialog.
+* Assign the ID:
+* In the Object Properties dialog, locate the ID field.
+* Enter the desired unique identifier for your object or group in this field.
+Optionally, you can also assign a Label and Title for better organization and identification within Inkscape.
+
 ---
 
 ### 2. Paste SVG into the Prototype

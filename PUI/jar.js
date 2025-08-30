@@ -20,6 +20,7 @@ class TubeJar {
   // Spawn a new tube next to the jar
   spawn() {
     const newTube = new Tube(this.tx + 110, this.ty + 10, `N${this.count++}`, 0);
+    LAB.tubes.push(newTube);
     console.log(`TubeJar: spawned new tube ${newTube.label}`);
   }
 }
