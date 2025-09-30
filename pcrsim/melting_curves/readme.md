@@ -35,22 +35,26 @@ Each student is in charge of leading and documenting one aspect of the project, 
 	- user guide: [molecular biologist / programmer]
 		+ technical background about DNA thermodynamics 
 		+ use of melting curves in qPCR + etc. 
-	- student exercise: [teacher / molecular biologist] 
-		+ use specific sequences to show how the software works; this overlaps with the testing task.
-		+ Audience:
+	- student exercises: [teacher / molecular biologist] 
+		+ audiences:
 			~ high school/undergrad: understand how the melting curve relates to different regions of the sequence
-			~ graduate: thermodynamics and algorithms
+			~ graduate: thermodynamics, algorithms
+        + use specific sequences to show how the software works; this overlaps with the testing task.
 	- conference poster and/or paper?
 
 * [Testing](https://github.com/ananyasathyanarayana/melting-curves-testing-ananya): __Ananya__
 	- compare to other estimates (results from other simulators, or experimental observations): [molecular biologist] 
-		+ collect test data (sequences in fasta files, associated melting curves in csv files)
+		+ collect test sequences and associated melting curves (temperature, fraction_melted)
+  			~ FASTA + CSV format
+			~ JSON format
 		+ modify the app to compare these reference files to the app results
+		+ figure out how to turn curve comparison into a single numeric error value (eg, RMSE).
 	- tune parameters: [data scientist] 
-		+ figure out how to turn comparison into a single numeric error value (eg, RMSE). 
-		+ find a parameter (e.g., melted/hybridized transition penalty in HMM) that affects the score. 
-		+ run the program over a range of values for this parameter, compute the error score, and try to find a minimum. 
-	- try to break the software: [software tester]
+		+ identify one or more parameters (e.g., melted/hybridized transition penalty in HMM) that affect the shape of the predicted melting curve. 
+		+ run the program over a range of values for these parameters, compute the error score, and try to find parameter values that minimize error. 
+	- Characterize the limitations of the software: [software tester]
+		+ How does performance scale with sequence length? How long of a sequence can you run effectively?
+  		+ Do all the features still work? (LLMs can break things)
 
 * [Vibe coding](https://github.com/jfbenigno): __Jaren__
 	- Compare vibe coding systems
