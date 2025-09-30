@@ -22,6 +22,43 @@ None of this work has been integrated into the qPCR simulator yet.
 Many of the goals below will require modifying the code, e.g., to support curve fitting or testing. Much of this should be possible using vibe coding.
 This application must be coded in Javascript to run client-side in a browser. You do not need to be a Javascript programmer (the LLM will do that part), but you will need to know how to run browser-based apps and access error messages.
 
+### Aspects of the project
+
+Each student is in charge of leading and documenting one aspect of the project, which will be hosted in a repository in their own github account. We will collect the final product here.
+
+* [App](https://github.com/nnpham2-sketch/App-Formation-Task---Melting-Curves-Project): __Natalie__
+	- simulation functions (will be re-used in the qPCR simulator as well as in the various UIs) [programmer / molecular biologist] 
+	- UIs
+		+ specialized for different use cases (high school students, bioinformatics graduate students, research scientists, etc)
+
+* [Documentation](https://github.com/eessanaa): __Elyes__
+	- user guide: [molecular biologist / programmer]
+		+ technical background about DNA thermodynamics 
+		+ use of melting curves in qPCR + etc. 
+	- student exercise: [teacher / molecular biologist] 
+		+ use specific sequences to show how the software works; this overlaps with the testing task.
+		+ Audience:
+			~ high school/undergrad: understand how the melting curve relates to different regions of the sequence
+			~ graduate: thermodynamics and algorithms
+	- conference poster and/or paper?
+
+* [Testing](https://github.com/ananyasathyanarayana/melting-curves-testing-ananya): __Ananya__
+	- compare to other estimates (results from other simulators, or experimental observations): [molecular biologist] 
+		+ collect test data (sequences in fasta files, associated melting curves in csv files)
+		+ modify the app to compare these reference files to the app results
+	- tune parameters: [data scientist] 
+		+ figure out how to turn comparison into a single numeric error value (eg, RMSE). 
+		+ find a parameter (e.g., melted/hybridized transition penalty in HMM) that affects the score. 
+		+ run the program over a range of values for this parameter, compute the error score, and try to find a minimum. 
+	- try to break the software: [software tester]
+
+* [Vibe coding](https://github.com/jfbenigno): __Jaren__
+	- Compare vibe coding systems
+	- Notes and experiments on prompt design (How you ask the questions, what to tell the LLM to do)
+		+ examples of failure modes and how to prevent them
+	- How does LLM generation of code change the approach to software development
+		+ Discuss the impact on "feature creep": it is _much_ easier to add features now; how is that good and bad?
+
 ## Ideas
 
 * Combine elements from the existing prototypes to get
