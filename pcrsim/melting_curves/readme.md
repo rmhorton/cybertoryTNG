@@ -37,16 +37,16 @@ Each student is in charge of leading and documenting one aspect of the project, 
 		+ use of melting curves in qPCR + etc. 
 	- student exercises: [teacher / molecular biologist] 
 		+ audiences:
-			~ high school/undergrad: understand how the melting curve relates to different regions of the sequence
-			~ graduate: thermodynamics, algorithms
+			- high school/undergrad: understand how the melting curve relates to different regions of the sequence
+			- graduate: thermodynamics, algorithms
         + use specific sequences to show how the software works; this overlaps with the testing task.
 	- conference poster and/or paper?
 
 * [Testing](https://github.com/ananyasathyanarayana/melting-curves-testing-ananya): __Ananya__
 	- compare to other estimates (results from other simulators, or experimental observations): [molecular biologist] 
 		+ collect test sequences and associated melting curves (temperature, fraction_melted)
-  			~ FASTA + CSV format
-			~ JSON format
+  			- FASTA + CSV format
+			- JSON format
 		+ modify the app to compare these reference files to the app results
 		+ figure out how to turn curve comparison into a single numeric error value (eg, RMSE).
 	- tune parameters: [data scientist] 
@@ -60,6 +60,9 @@ Each student is in charge of leading and documenting one aspect of the project, 
 	- Compare vibe coding systems
 	- Notes and experiments on prompt design (How you ask the questions, what to tell the LLM to do)
 		+ examples of failure modes and how to prevent them
+        + How to fix a problem vs. how to get the LLM to fix the problem
+            - [How to control slider length in HTML](https://www.google.com/search?q=How+to+control+slider+length+in+HTML)
+            - Tell the LLM how much to increase the slider length by. It cannot see the screen; try giving it measurements.
 	- How does LLM generation of code change the approach to software development
 		+ Discuss the impact on "feature creep": it is _much_ easier to add features now; how is that good and bad?
 
