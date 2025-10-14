@@ -56,7 +56,7 @@ Each student is in charge of leading and documenting one aspect of the project, 
 		+ How does performance scale with sequence length? How long of a sequence can you run effectively?
   		+ Do all the features still work? (LLMs can break things)
 
-* [Vibe coding](https://github.com/jfbenigno): __Jaren__
+* [Vibe coding](https://github.com/jfbenigno/Bob-Horton-Melting-Curve-Project): __Jaren__
 	- Compare vibe coding systems
 	- Notes and experiments on prompt design (How you ask the questions, what to tell the LLM to do)
 		+ examples of failure modes and how to prevent them
