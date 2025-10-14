@@ -1,0 +1,50 @@
+---
+title: "phiX174 Melting Curve Extraction"
+author: "Bob"
+date: "2025-10-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Coordinate extraction
+
+Points along the melting curve for the phiX174 bacteriophage were extracted from Figure 3 of Azbel, [DNA sequencing and melting curve](https://pmc.ncbi.nlm.nih.gov/articles/PMC382884/pdf/pnas00001-0109.pdf), published in 1979. Here we fit a spline to these points, and use that to interpolate the melting curve at regularly spaced temperatures.
+
+* solid line: PhiXD, 15 mM NaC/1.5 mM Nacitrate
+* dashed line: fragments Y1 and Y2
+
+Here is the sequence of the [PhiX174 bacteriophage](https://www.ncbi.nlm.nih.gov/nuccore/NC_001422.1)
+ 
+[Comparison of theoretical denaturation maps of ϕX174 and SV40 with their gene maps](https://pmc.ncbi.nlm.nih.gov/articles/PMC327754/pdf/nar00444-0261.pdf)
+
+```{r libraries}
+library('ggplot2')
+```
+
+```{r phiX174}
+# setwd("~/Documents/projects/cybertory_TNG/melting_curve_simulation_2025/reference_curves/phiX174_1979")
+
+phiX174_raw <- read.csv("data/solid_line.csv", header=FALSE, col.names=c("T", "dFdT"))
+
+# with (phiX174_raw, plot(temperature, dFdT, type='l'))
+
+fit_ss <- with(phiX174_raw, smooth.spline(T, dFdT, nknots = 60)) # try various numbers of knots 
+
+std_data <- data.frame(T = seq(69.5, 75.0, by=0.1))
+std_data['dFdT'] <- predict(fit_ss, std_data['T'])$y
+
+phiX174_raw |>
+  ggplot(aes(x=T, y=dFdT)) + 
+	geom_line() + 
+  geom_point(data=std_data, aes(x=T, y=dFdT), col="red")
+
+std_data |> write.csv("phiX174_std.csv")
+```
+
+# To Do:
+
+* predict melting curve for PhiX174
+* compare to this experimentl curve.
