@@ -1,0 +1,112 @@
+---
+title: "Melting Curves fro Phongroop 2023"
+author: "Bob"
+date: "2025-10-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here we extract melting curve data from Phongroop K, Rattanasrisomporn J, Tangtrongsup S, Rungsipipat A, Piewbang C, Techangamsuwan S. [High-resolution melting analysis for simultaneous detection and discrimination between wild-type and vaccine strains of feline calicivirus](https://pubmed.ncbi.nlm.nih.gov/37851857/). Vet Q. 2023 Dec;43(1):1-12. doi: 10.1080/01652176.2023.2272188. Epub 2023 Nov 1. PMID: 37851857; PMCID: PMC11003490. , 
+
+
+Points on selected curves from Figure 1a were manually marked in [WebPlotDigitizer](https://automeris.io/wpd/?v=5_2) and saved to CSV files.
+
+The x and y values in these files are scaled from 0 to 1; I apparently did not calibrate the graph correctly. For now, I have just re-scaled these values myself so that they match the figure.
+
+## Figure 1a
+
+### Melting curves
+
+```{r fig1a}
+
+# I extracted the colors from Figure 1 by pasting a screen
+# shot of the legend into Inkscape, then using the color
+# picker to get the exact RBG values for each strain.
+color_legend <- c(
+						`Nobivac1_HCPCh`="#921c9a",
+						`FCV-TH/KP367` = "#a0fc4e",
+						`FCV-TH/KP135` = "#7f7f7f",
+						`FCV-TH/KP181` = "#aaaad3",
+						`FCV_GX01-13` = "#173e7b",
+						`FCV-TH/KP106` = "#ee86be",
+						`FCV-TH/KP80` = "#784415",
+						`FCV-TH/KP313` = "#2f6eba",
+						`FCV_UTCVM-H2` = "#49a2a3",
+						`FCV-TH/KP361` = "#367b21",
+						`FCV-TH/KP82` = "#9a833d"
+)
+
+fit_curve_data <- function(file_name){
+	# Fit standardized melting curve to curve data.
+	# Load datapoints from CSV file, rescale, fit spline, 
+	# take measurements at regularly spaced temperatures.
+	# Param file_name: local path to a csv file containing
+	#       unscaled x, y coordinates from WebPlotDigitizer.
+	# Returns: dataframe with temperature and fluorescence columns.
+	points_df <- read.csv(file.path('points_data', file_name),
+												col.names=c("x", "y"))
+	
+	points_df$temperature <- 79.5 + points_df$x * (90.0 - 79.5)
+	points_df$fluorescence <- 12 + points_df$y * (102.0 - 12) # fudge factors
+	
+	fit_ss <- with(points_df, smooth.spline(temperature, fluorescence, nknots = 20)) # try various numbers of knots 
+
+	std_data <- data.frame(temperature = seq(79.5, 90.0, by=0.1))
+	std_data['fluorescence'] <- predict(fit_ss, std_data['temperature'])$y
+
+	return(std_data)
+}
+
+
+library(png)
+my_image <- readPNG("Phongroop_fig1a.png")
+ 
+# Set up a plot area with no plot
+plot(c(79.5, 90.0), c(-5, 100), type='n', main="", xlab="x", ylab="y")
+ 
+# Draw the plot such that the image fills the plot box.
+# lim <- par()
+rasterImage(my_image, 
+            xleft=79.1, xright=90.2, # edges of the image in plot coordinates
+            ybottom=-12, ytop=114)
+grid()
+
+data_files <- list.files('points_data') |> 
+	grep(".csv$", x=_, value=TRUE)
+
+for (fn in data_files){
+	points_df <- fit_curve_data(fn)
+	strain_name <- fn |> gsub('.csv', '', x=_, fixed=TRUE)
+	with(points_df, points(temperature, fluorescence, pch=20, 
+												 col=color_legend[strain_name],
+												 cex=0.5))
+}
+
+
+
+
+```
+### Amplicon sequences
+
+The amplicon sequences are available from the [supplemental Materials](https://pmc.ncbi.nlm.nih.gov/articles/instance/11003490/bin/TVEQ_A_2272188_SM3964.docx). This is a Word document, but since the amplicon data is in a table, it was straightforward to save it as a CSV file. I edited the CSV slightly to make it easier to load.
+
+Note that the melting curves were run on a subregion of the sequences in the table, defined by these primers:
+
+ * HRM_For: GGYGTGGAGGCGCGGWC 
+ * HRM_Rev: CGTHAGCGCAGGTTGAGCACAT
+
+which use these [IUPAC ambiguity codes](https://en.wikipedia.org/wiki/Nucleic_acid_notation):
+	* Y: (pYrimidine) C or T
+	* W: (Weak) A or T
+	* H: (not G) A, C, or T
+
+```{r amplicon_sequences}
+amplicon_file <- "Phongroop_amplicon_sequences.csv"
+
+amplicon_df <- read.csv(amplicon_file)
+
+knitr::kable(amplicon_df)
+```
