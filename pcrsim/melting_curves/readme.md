@@ -31,7 +31,7 @@ Each student is in charge of leading and documenting one aspect of the project, 
 	- UIs
 		+ specialized for different use cases (high school students, bioinformatics graduate students, research scientists, etc)
 
-* [Documentation](https://github.com/eessanaa): __Elyes__
+* [Documentation](https://github.com/eessanaa/Bob-Horton-Melting-Curve-Project): __Elyes__
 	- user guide: [molecular biologist / programmer]
 		+ technical background about DNA thermodynamics 
 		+ use of melting curves in qPCR + etc. 
