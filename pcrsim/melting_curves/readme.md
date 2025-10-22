@@ -65,6 +65,10 @@ Each student is in charge of leading and documenting one aspect of the project, 
             - Tell the LLM how much to increase the slider length by. It cannot see the screen; try giving it measurements.
 	- How does LLM generation of code change the approach to software development
 		+ Discuss the impact on "feature creep": it is _much_ easier to add features now; how is that good and bad?
+    - How can we use LLMs to auromate testing
+  		+ closed loop:
+  			- preview HTML app right in the canvas
+			- RMarkdown document (where the type of the canvas is code/r)
 
 ## Ideas
 
