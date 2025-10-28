@@ -1,120 +1,254 @@
-# DNA Melting Curves
+---
+title: "DNA Melting Curve Simulation"
+author: "Robert Horton"
+date: today
+date-format: "long"
+description: ""
+image: ""
+image-alt: ""
+categories: ""
+code-fold: true
+code-summary: "Show the code"
+editor: source
+format:
+  html:
+    toc: true # Enables the table of contents
+    toc-depth: 3 # (Optional) Sets the depth of headers to include (e.g., h1, h2, h3)
+    toc-location: left # (Optional) Places the table of contents on the left
+---
 
-## Vibe-coding prototypes
+# Project Management and Software Specification
 
-The code and documentation in this subdirectory was all written by chatGPT, to experiment with "vibe coding" for prototyping.
+## 1. Project Overview
+This project is an educational, client-side **JavaScript web application** that simulates DNA melting curves for PCR and molecular biology instruction. It is part of the *cybertoryTNG* ecosystem and designed for use in teaching laboratories and interactive demonstrations. The app models the fraction of double-stranded DNA that remains hybridized as a function of temperature, sequence composition, and buffer conditions.
 
-* `dna_melting_curve_simulator_nearest_neighbor.html` uses nearest-neighbor thermodynamics with a sliding window to smooth the estimated melting temperature for neighborhoods along the sequence.
+### 1.1 Educational Goals
+- Visualize DNA melting as a dynamic, probabilistic process.
+- Provide an interactive way for students to explore how GC content, salt concentration, and sequence length affect melting temperature (Tm).
+- Introduce computational biophysics concepts (nearest-neighbor thermodynamics, HMMs, partition functions).
 
-* `dna_melting_curve_simulator_nearest_neighbor_HMM_smoothing.html` adds an option to use an HMM for smoothing, still estimating melting temperature over a window.
-  
-* `dna_melting_deriv_hmm_app.html` computes a melting curve using nearest neighbor thermodynamics together with the Viterbi algorithm to find the most likely state of _each base pair_ at a given temperature, depending on the melting state of its neighbors. 
-ChatGPT also wrote the accompanying user manual, including references. I believe this is a novel approach to simulating a melting curve, and ChatGPT agrees, but if we stole your idea please let me know!
+### 1.2 Scope
+The app is fully client-side, using **JavaScript**, **HTML**, and **CSS**, and optionally **Web Workers** for heavy computation. It integrates with other cybertoryTNG components but functions independently.
 
-This is a work in progress; these approaches have not yet been compared to experimental results.
+---
 
-The goal is to devlop melting curve simulation code suitable for use in the quantitative PCR simulation.
+## 2. Example Use Cases
 
-## Student Project: Develop an improved [DNA Melting curve](https://en.wikipedia.org/wiki/Melting_curve_analysis) for the Cybertory [qPCR simulator](https://github.com/rmhorton/cybertoryTNG/tree/main/pcrsim)
-The current [prototypes](https://github.com/rmhorton/cybertoryTNG/tree/main/pcrsim/melting_curves) need improvement and testing.
-These prototypes all seem to give qualitatively reasonable results, but they have not been evaluated thoroughly, and we should probaby combine parts from several of them in the final version.
-None of this work has been integrated into the qPCR simulator yet.
-Many of the goals below will require modifying the code, e.g., to support curve fitting or testing. Much of this should be possible using vibe coding.
-This application must be coded in Javascript to run client-side in a browser. You do not need to be a Javascript programmer (the LLM will do that part), but you will need to know how to run browser-based apps and access error messages.
+### 2.1 Teaching about Melting Curves
+**Primary Learning Objectives:**
+- Understand that **double-stranded DNA (dsDNA)** can be distinguished from **single-stranded DNA (ssDNA)** by spectroscopy (e.g., absorbance at 260 nm).
+- Recognize that a **melting curve** is a plot of the fraction melted (or equivalently, the fraction remaining double-stranded) versus temperature.
+- Observe that **different regions of long DNA molecules melt at different temperatures**, depending on GC content and sequence context.
+- Learn that the **first derivative** of the melting curve (dF/dT) accentuates melting transitions, making multi-domain melting behavior visible.
 
-### Aspects of the project
+**Interactive Activities:**
+- Students adjust temperature and see changes in the fraction melted in real time.
+- Display both the melting curve and its derivative side-by-side.
+- Compare synthetic sequences of differing GC content.
 
-Each student is in charge of leading and documenting one aspect of the project, which will be hosted in a repository in their own github account. We will collect the final product here.
+### 2.2 Identifying a Virus Strain from Simulated Melting Curves
+**Scenario:**
+Students simulate melting experiments for several viral DNA samples and compare their curves against a reference strain.
 
-* [App](https://github.com/nnpham2-sketch/App-Formation-Task---Melting-Curves-Project): __Natalie__
-	- simulation functions (will be re-used in the qPCR simulator as well as in the various UIs) [programmer / molecular biologist] 
-	- UIs
-		+ specialized for different use cases (high school students, bioinformatics graduate students, research scientists, etc)
+**Key Features:**
+- Load reference and sample sequences.
+- Generate and plot simulated melting curves for each.
+- Compute and display **difference curves** (ΔF(T) = F_sample − F_reference).
+- Identify characteristic deviations that distinguish strains (e.g., mutations altering local GC content or stability).
 
-* [Documentation](https://github.com/eessanaa/Bob-Horton-Melting-Curve-Project): __Elyes__
-	- user guide: [molecular biologist / programmer]
-		+ technical background about DNA thermodynamics 
-		+ use of melting curves in qPCR + etc. 
-	- student exercises: [teacher / molecular biologist] 
-		+ audiences:
-			- high school/undergrad: understand how the melting curve relates to different regions of the sequence
-			- graduate: thermodynamics, algorithms
-        + use specific sequences to show how the software works; this overlaps with the testing task.
-	- conference poster and/or paper?
+**Pedagogical Goal:**
+Teach how minor sequence variations affect thermodynamic profiles, and how such profiles can serve as diagnostic fingerprints.
 
-* [Testing](https://github.com/ananyasathyanarayana/melting-curves-testing-ananya): __Ananya__
-	- compare to other estimates (results from other simulators, or experimental observations): [molecular biologist] 
-		+ collect test sequences and associated melting curves (temperature, fraction_melted)
-  			- FASTA + CSV format
-			- JSON format
-		+ modify the app to compare these reference files to the app results
-		+ figure out how to turn curve comparison into a single numeric error value (eg, RMSE).
-	- tune parameters: [data scientist] 
-		+ identify one or more parameters (e.g., melted/hybridized transition penalty in HMM) that affect the shape of the predicted melting curve. 
-		+ run the program over a range of values for these parameters, compute the error score, and try to find parameter values that minimize error. 
-	- Characterize the limitations of the software: [software tester]
-		+ How does performance scale with sequence length? How long of a sequence can you run effectively?
-  		+ Do all the features still work? (LLMs can break things)
+---
 
-* [Vibe coding](https://github.com/jfbenigno/Bob-Horton-Melting-Curve-Project): __Jaren__
-	- Compare vibe coding systems
-	- Notes and experiments on prompt design (How you ask the questions, what to tell the LLM to do)
-		+ examples of failure modes and how to prevent them
-        + How to fix a problem vs. how to get the LLM to fix the problem
-            - [How to control slider length in HTML](https://www.google.com/search?q=How+to+control+slider+length+in+HTML)
-            - Tell the LLM how much to increase the slider length by. It cannot see the screen; try giving it measurements.
-	- How does LLM generation of code change the approach to software development
-		+ Discuss the impact on "feature creep": it is _much_ easier to add features now; how is that good and bad?
-    - How can we use LLMs to auromate testing
-  		+ closed loop:
-  			- preview HTML app right in the canvas
-			- RMarkdown document (where the type of the canvas is code/r)
+## 3. Functional Requirements
 
-## Ideas
+### 3.1 Core Simulation Features
+- **Input**: DNA sequence(s), salt concentration, and temperature range.
+- **Output**: Melting curve plot (fraction bound vs. temperature).
+- **Algorithm Options**:
+  - Nearest-neighbor (SantaLucia, 1998)
+  - HMM-based per-base melt probability (Owczarzy et al., 2008)
+  - Empirical sigmoid approximation for teaching mode.
+- **Display**:
+  - Interactive plot (D3.js or Plotly.js)
+  - Real-time adjustable sliders for temperature and buffer composition.
+  - Optional per-base probability map heatmap.
 
-* Combine elements from the existing prototypes to get
-	+ a better interface
-	+ a more suitable melting simulation
-* Compare to experimental curves
-	+ Collect a set of published melting curves for known DNA sequences.
-	+ Export melting curve data from the simulator (or import experimental results into the simulation environment) to make comparisons.
-	+ Can we adjust hyperparameters to make the simulated curves fit better?
-* The NN/HMM approach used in the third prototype app seems to be novel
-	+ Use [Nearest Neighbor thermodynamics](https://en.wikipedia.org/wiki/Nucleic_acid_thermodynamics) to estimate the stability of each base pair
-	+ Use a Hidden Markov model (HMM) to assign melted/hybridized state to each base pair and compute fraction melted at each temperature.
-	+ This method may be a good fit for bioinformatics classes:
-		- The [Viterbi algorithm](https://en.wikipedia.org/wiki/Viterbi_algorithm) used to solve HMMs is an important example of dynamic programming
-		- [Biological sequence alignment](https://en.wikipedia.org/wiki/Sequence_alignment) is commonly done with dynamic programming as well.
-* Documentation
-  + Published melting curves (I can only find really old papers containing these curves; there must (?) be databases for qPCR products...)
-  	- phiX174 bacteriophage, from [DNA sequencing and melting curve](https://pmc.ncbi.nlm.nih.gov/articles/PMC382884/pdf/pnas00001-0109.pdf), published in 1978.
-  		Here is the sequence of the [PhiX174 bacteriophage](https://www.ncbi.nlm.nih.gov/nuccore/NC_001422.1)
-  	- [Comparison of theoretical denaturation maps of ϕX174 and SV40 with their gene maps](https://pmc.ncbi.nlm.nih.gov/articles/PMC327754/pdf/nar00444-0261.pdf)
-  	- PBR322 plasmid, from [A study of the reversibility of helix-coil transition in DNA](https://pmc.ncbi.nlm.nih.gov/articles/PMC327413/pdf/nar00409-0159.pdf)
-  		("pBR322 DNA was converted into the linear form by restriction endonuclease Pat I")"
-  		[Complete sequence](https://www.ncbi.nlm.nih.gov/nuccore/J01749.1) of the [pBR322](https://en.wikipedia.org/wiki/PBR322) cloning vector.
-	+ Articles and videos:
-		- [Explaining multiple peaks in qPCR melt curve analysis](https://www.idtdna.com/pages/education/decoded/article/interpreting-melt-curves-an-indicator-not-a-diagnosis)
-		- [High resolution melt analysis tutorial](https://www.youtube.com/watch?v=y567YuJhSek)
-		- [Quantitative PCR -- the melting curve](https://www.youtube.com/watch?v=OAsuG0v-cr4)
-* Compare to other simulations
-	+ [uMelt](https://www.dna-utah.org/umelt/quartz/um.php) (runs on a website; this has a 1250bp limit on input sequence)
-	+ [MeltDNA](https://www.rdocumentation.org/packages/DECIPHER/versions/2.0.2/topics/MeltDNA) from the [DECIPHER](https://bioconductor.org/packages/release/bioc/html/DECIPHER.html) package on Bioconductor. Handles very long sequences.
-	+ you should be able to find more
-* Explore the limitations of the software
-	+ Can you break it?
-	+ Can you identify "toxic" inputs?
-	+ How does performance scale with sequence length?
-* Generate datasets for testing and demonstrations
-	+ single-product melting curves that look like mixtures of products.
-* Incorporate into qPCR simulator
-	+ swap out the existing (simplistic) melting curve logic
-	+ add melting curve analysis to student exercises
-* Greatly expand the user manual to explain the approach and demonstrate applications / Write a paper!
+### 3.2 Pedagogical Enhancements
+- Step-by-step visualization of strand separation.
+- Annotation of key thermodynamic parameters (ΔH, ΔS, ΔG).
+- “Challenge mode” allowing users to guess or predict Tm.
+- Side-by-side comparison of multiple sequences.
+- Derivative plot (dF/dT) highlighting distinct melting domains.
+- Overlay and difference-curve visualization for comparative studies.
 
-## Deliverables
+### 3.3 Export and Sharing
+- Export data as CSV and plot as PNG.
+- Generate reproducible URL with encoded parameters.
+- Optional GitHub Pages integration for classroom deployment.
 
-* HTML file for a stand-alone melting curve app, with UI.
-* JS file for the code to compute the melting curve (this will be reused by the PCR app).
-* A user guide (Markdown or HTML) - may include illustrations.
-* Word document for a student exercise on melting curves.
+---
+
+## 4. System Architecture
+
+### 4.1 High-Level Overview
+- **UI Layer**: HTML/CSS/JS frontend with reactive controls.
+- **Computation Layer**: Modular JS functions for thermodynamic calculations; potentially offloaded to a Web Worker.
+- **Visualization Layer**: Interactive SVG or Canvas rendering via D3.js.
+
+### 4.2 Data Flow
+1. User inputs parameters → validated by controller.
+2. Thermodynamic module computes fraction bound vs. temperature.
+3. Visualization module renders interactive curve.
+4. User adjusts parameters → recompute and update plot in real time.
+
+### 4.3 Dependencies
+- `jstat` for numeric and statistical functions.
+- `plotly.js` or `d3.js` for charting.
+- `math.js` for symbolic and numerical expressions.
+- `FileSaver.js` for export functions.
+
+---
+
+## 5. Algorithmic Design
+
+### 5.1 Nearest-Neighbor Model
+Implements ΔH and ΔS summations using SantaLucia 1998 parameters for 10 dinucleotide pairs, accounting for helix initiation and terminal corrections.
+
+### 5.2 Partition Function / HMM Model
+Computes base-by-base melt probabilities using forward–backward recursion. Optional per-base visualization for advanced users.
+
+### 5.3 Empirical Approximation Mode
+For fast classroom demonstration, model the melting curve as a logistic sigmoid:
+
+$$ f(T) = \frac{1}{1 + e^{-k(T_m - T)}} $$
+
+---
+
+## 6. User Interface Design
+
+### 6.1 Layout
+- **Top Panel**: Sequence input, salt and concentration sliders.
+- **Main Panel**: Interactive melting curve.
+- **Side Panel**: Parameter summary and export options.
+- **Bottom Bar**: Links to references, documentation, and GitHub.
+
+### 6.2 Interactivity
+- Sliders dynamically replot the curve.
+- Mouse-over tooltips show local melt fraction.
+- Option to freeze curves for comparison.
+- Toggle between raw and derivative curves.
+
+### 6.3 Accessibility
+- Responsive design for desktop and tablet.
+- Color-safe palettes for red-green color blindness.
+
+---
+
+## 7. Implementation Plan
+
+| Phase | Duration | Goals |
+|-------|-----------|-------|
+| Phase 1 | Week 1–2 | Establish repository structure, UI wireframes, and baseline computation model. |
+| Phase 2 | Week 3–4 | Implement nearest-neighbor algorithm and interactive plot. |
+| Phase 3 | Week 5–6 | Add HMM/partition-function mode and comparison tools. |
+| Phase 4 | Week 7–8 | Polish UI, export features, and documentation. |
+
+---
+
+## 8. Task Assignments
+
+| Role | Student | Responsibilities |
+|------|----------|------------------|
+| Lead Developer | TBD | Core simulation code, data flow integration. |
+| UI/UX Designer | TBD | Layout, controls, interactivity, and accessibility. |
+| Visualization Engineer | TBD | Plotting logic and animation. |
+| Documentation & QA | TBD | README, comments, and test coverage. |
+
+---
+
+## 9. Testing and Validation
+
+### 9.1 Unit Testing
+- Verify ΔH and ΔS summations for all dinucleotide pairs.
+- Check partition-function recursion correctness.
+- Validate sigmoid fit parameters against simulated data.
+
+### 9.2 Integration Testing
+- Ensure UI updates are synchronized with computation results.
+- Validate export accuracy (CSV, PNG).
+
+### 9.3 Educational Testing
+- Evaluate usability and clarity with pilot students.
+- Test pedagogical outcomes for both use cases.
+
+---
+
+## 10. Documentation and References
+
+### 10.1 Primary Literature
+- SantaLucia J. (1998). *A unified view of polymer, dumbbell, and oligonucleotide DNA nearest-neighbor thermodynamics.* **PNAS** 95:1460–1465.
+- Owczarzy R. et al. (2008). *Predicting stability of DNA duplexes in solutions containing magnesium and monovalent cations.* **Biochemistry** 47:5336–5353.
+
+### 10.2 Related Tools
+- MeltSim (Rueda et al., 2004)
+- DINAMelt Web Server
+- OligoCalc
+
+### 10.3 Future Enhancements
+- Incorporate temperature-dependent salt corrections.
+- Add RNA hybridization module.
+- Extend visualization to multi-domain PCR amplicons.
+
+---
+
+## 11. Repository and Deployment
+
+### 11.1 GitHub Structure
+```
+pcrsim/
+  ├── melting_curves/
+  │     ├── index.html
+  │     ├── app.js
+  │     ├── style.css
+  │     ├── thermodynamics.js
+  │     ├── visualization.js
+  │     ├── readme.md
+  │     └── tests/
+  ├── shared_utils/
+  └── docs/
+```
+
+### 11.2 Hosting
+- Deployed via GitHub Pages.
+- Auto-build workflow with GitHub Actions.
+
+### 11.3 Versioning
+- Semantic Versioning (SemVer): `vX.Y.Z`
+- Tagged releases for major milestones.
+
+---
+
+## 12. Milestones and Deliverables
+
+| Milestone | Deliverable | Due Date |
+|------------|-------------|-----------|
+| M1 | Repo initialized, project plan finalized | Week 1 |
+| M2 | Prototype NN model & plot | Week 3 |
+| M3 | HMM module integrated | Week 6 |
+| M4 | Documentation and testing complete | Week 8 |
+
+---
+
+## 13. Evaluation Criteria
+- Functionality: Accuracy and performance of simulations.
+- Usability: Clear, intuitive, and engaging UI.
+- Educational Value: Alignment with teaching objectives.
+- Code Quality: Modularity, clarity, and documentation.
+- Collaboration: Effective use of GitHub issues, commits, and pull requests.
+
+---
+
+## 14. Summary
+This project combines biophysical modeling with interactive visualization to create a hands-on learning experience in molecular thermodynamics. The specification provides a roadmap for the team to deliver a scientifically accurate, visually engaging, and pedagogically valuable simulation tool.
