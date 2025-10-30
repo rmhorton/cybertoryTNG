@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNA Melting Curve Simulator — Refactored</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --muted: #9ca3af;
+      --text: #e5e7eb;
+      --accent: #38bdf8;
+      --accent-2: #a78bfa;
+      --ok: #22c55e;
+      --warn: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: radial-gradient(1200px 600px at 20% -10%, #1f2937, transparent), var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 28px; margin: 10px 0 4px; letter-spacing: 0.2px; }
+    .sub { color: var(--muted); margin-bottom: 18px; }
+
+    .grid { display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .card .hd { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: 600; color: #cbd5e1; }
+    .card .bd { padding: 14px 16px; }
+
+    textarea, input[type="number"], select {
+      width: 100%; background: #0b1220; border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text); border-radius: 12px; padding: 10px 12px; outline: none; font-size: 14px;
+    }
+    textarea { resize: vertical; min-height: 110px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 2px 6px; }
+    .btns { display: flex; gap: 10px; margin-top: 10px; }
+    button {
+      cursor: pointer; border: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(180deg, rgba(56,189,248,0.25), rgba(56,189,248,0.15));
+      color: white; border-radius: 12px; padding: 10px 12px; font-weight: 600;
+    }
+    button.secondary {
+      background: linear-gradient(180deg, rgba(167,139,250,0.2), rgba(167,139,250,0.1));
+    }
+
+    canvas { width: 100%; height: 300px; background: #0b1220; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); cursor: ew-resize; }
+    .strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(6px, 1fr)); gap: 2px; }
+    .bp { height: 18px; border-radius: 3px; }
+    .legend { display:flex; align-items:center; gap:10px; font-size:12px; color: var(--muted); margin-top: 6px; }
+    .swatch { width: 20px; height: 10px; border-radius: 2px; border:1px solid rgba(255,255,255,0.15); }
+
+    .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+    .pill { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); padding: 8px 10px; border-radius: 12px; font-size: 13px; text-align: center; }
+
+    .small { font-size: 12px; color: var(--muted); }
+    .error { color: #fecaca; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); padding: 8px 10px; border-radius: 10px; margin-top: 8px; display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>DNA Melting Curve Simulator <span class="small">(Nearest-Neighbor + HMM + Thermodynamic Model)</span></h1>
+    <div class="sub">Base-by-base melting map using SantaLucia nearest-neighbor thermodynamics. Optionally smooth with a 2-state HMM (Helical ↔ Melted) to capture cooperativity. Includes Na⁺/Mg²⁺-adjusted thermodynamic option.</div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="hd">Inputs</div>
+        <div class="bd">
+          <label for="seq">DNA sequence (A/T/G/C)</label>
+          <textarea id="seq" spellcheck="false"></textarea>
+
+          <div class="row3">
+            <div><label>[Na⁺] (M)</label><input id="salt" type="number" value="0.05" step="0.0001" /></div>
+            <div><label>[Mg²⁺] (M)</label><input id="mg" type="number" value="0.001" step="0.0001" /></div>
+            <div><label>Strand conc (M)</label><input id="conc" type="number" value="0.0000005" step="1e-7" /></div>
+          </div>
+
+          <div class="row3">
+            <div><label>Window size</label><input id="win" type="number" value="15" min="5" max="51" step="2" /></div>
+            <div><label>Slope k (°C)</label><input id="k" type="number" value="0.8" step="0.05" /></div>
+            <div>
+              <label>Inference</label>
+              <select id="mode">
+                <option value="indep" selected>Independent</option>
+                <option value="post">HMM Posterior</option>
+                <option value="viterbi">HMM Viterbi</option>
+                <option value="thermo">Thermodynamic</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row3">
+            <div><label>Domain L</label><input id="L" type="number" value="20" step="1" /></div>
+            <div><label>π<sub>M</sub></label><input id="piM" type="number" value="0.5" step="0.01" /></div>
+            <div><label>ε</label><input id="eps" type="number" value="1e-6" step="1e-6" /></div>
+          </div>
+
+          <div class="btns">
+            <button id="demo">Load demo</button>
+            <button class="secondary" id="clear">Clear</button>
+          </div>
+          <div class="error" id="err"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">Visualization</div>
+        <div class="bd">
+          <label>Temperature: <span id="tLabel">70</span>°C</label>
+          <canvas id="chart" width="900" height="300"></canvas>
+
+          <div class="stat">
+            <div class="pill">Fraction melted: <span id="frac">—</span></div>
+            <div class="pill">Median local T<sub>m</sub>: <span id="medianTm">—</span></div>
+            <div class="pill">Length: <span id="len">—</span></div>
+          </div>
+
+          <div class="legend">
+            <div class="swatch" style="background:#1d4ed8"></div><div>0%</div>
+            <div class="swatch" style="background:#ef4444"></div><div>100%</div>
+          </div>
+          <div class="strip" id="strip"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      Thermodynamics: SantaLucia NN ΔH/ΔS, soft emission p(T)=1/(1+exp(−(T−Tₘ)/k)).
+      HMM: 2-state (H,M), α=1/L. Thermo mode: ΔTₘ correction via 16.6·log₁₀[Na⁺] + 3.85·log₁₀(1+4√[Mg²⁺]).
+    </div>
+  </div>
+
+  <script src="meltingLib.js"></script>
+  <script>
+    // import * as melt from './meltingLib.js';
+
+    // DOM elements
+    const seqEl = document.getElementById('seq');
+    const saltEl = document.getElementById('salt');
+    const mgEl = document.getElementById('mg');
+    const concEl = document.getElementById('conc');
+    const winEl = document.getElementById('win');
+    const kEl = document.getElementById('k');
+    const modeEl = document.getElementById('mode');
+    const LEl = document.getElementById('L');
+    const piMEl = document.getElementById('piM');
+    const epsEl = document.getElementById('eps');
+
+    const fracEl = document.getElementById('frac');
+    const medTmEl = document.getElementById('medianTm');
+    const lenEl = document.getElementById('len');
+    const tLabel = document.getElementById('tLabel');
+    const strip = document.getElementById('strip');
+    const chart = document.getElementById('chart');
+    const errEl = document.getElementById('err');
+    const demoBtn = document.getElementById('demo');
+    const clearBtn = document.getElementById('clear');
+
+    let state = { seq: '', tms: [], Tmin: 20, Tmax: 100, currentT: 70 };
+
+    // --- Drawing helpers ---
+    function colorForProb(p) {
+      const c1 = [0x1d, 0x4e, 0xd8];
+      const c2 = [0xef, 0x44, 0x44];
+      const mix = c1.map((v, i) => Math.round(v + (c2[i] - v) * p));
+      return `rgb(${mix[0]},${mix[1]},${mix[2]})`;
+    }
+    function drawStrip(container, probs) {
+      container.innerHTML = '';
+      probs.forEach((p,i)=>{
+        const el=document.createElement('div');
+        el.className='bp';
+        el.style.background=colorForProb(isFinite(p)?p:0);
+        el.title=`i=${i+1}  p_melt=${isFinite(p)?p.toFixed(3):'—'}`;
+        container.appendChild(el);
+      });
+    }
+
+    function drawCurve(canvas, probsFunc, Tmin, Tmax, currentT=null) {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#0b1220'; ctx.fillRect(0,0,W,H);
+      ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
+      for(let i=0;i<=5;i++){const y=H-(H*(i/5));ctx.beginPath();ctx.moveTo(40,y);ctx.lineTo(W-10,y);ctx.stroke();}
+      const N=200;
+      ctx.beginPath();
+      for(let i=0;i<=N;i++){
+        const T=Tmin+(i/N)*(Tmax-Tmin);
+        const probs=probsFunc(T);
+        const f=probs.reduce((a,b)=>a+(isFinite(b)?b:0),0)/Math.max(1,probs.length);
+        const x=40+(W-60)*(i/N); const y=(H-20)-(H-40)*f;
+        if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2; ctx.stroke();
+      if(currentT!=null){
+        const t=(currentT-Tmin)/(Tmax-Tmin);
+        const x=40+(W-60)*Math.max(0,Math.min(1,t));
+        ctx.beginPath();ctx.moveTo(x,20);ctx.lineTo(x,H-20);
+        ctx.strokeStyle='rgba(239,68,68,0.9)';ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      }
+    }
+
+    // --- Main logic ---
+    function recompute() {
+      errEl.style.display='none';
+      const seq=melt.sanitizeSeq(seqEl.value);
+      if(!seq.length){ errEl.textContent='Please enter a sequence containing only A/T/G/C.'; errEl.style.display='block'; return; }
+
+      const salt=+saltEl.value||0.05, conc=+concEl.value||5e-7, win=Math.max(5,Math.floor(+winEl.value||15)|1);
+      state.seq=seq;
+      state.tms=melt.localTms(seq, conc, salt, win);
+      lenEl.textContent=seq.length;
+      medTmEl.textContent=isFinite(melt.median(state.tms))?melt.median(state.tms).toFixed(2):'—';
+      updateVisuals();
+    }
+
+    function probsAtT(T){
+      const k=+kEl.value||0.8, mode=modeEl.value, L=+LEl.value||20, piM=+piMEl.value||0.5, eps=+epsEl.value||1e-6;
+      const salt=+saltEl.value||0.05, mg=+mgEl.value||0.001;
+      return melt.probsAtT(T, state.tms, k, mode, L, piM, eps, salt, mg);
+    }
+
+    function updateVisuals() {
+      const T=state.currentT; tLabel.textContent=T.toFixed(1);
+      const probs=probsAtT(T);
+      const f=probs.reduce((a,b)=>a+(isFinite(b)?b:0),0)/Math.max(1,probs.length);
+      fracEl.textContent=isFinite(f)?f.toFixed(3):'—';
+      drawStrip(strip, probs);
+      drawCurve(chart, probsAtT, state.Tmin, state.Tmax, T);
+    }
+
+    // --- Draggable temperature line ---
+    const plotLeft=()=>40; const plotWidth=()=>chart.width-60;
+    const xForT=(T)=>plotLeft()+plotWidth()*((T-state.Tmin)/(state.Tmax-state.Tmin));
+    const TForX=(x)=>state.Tmin+((x-plotLeft())/plotWidth())*(state.Tmax-state.Tmin);
+    let dragging=false;
+    function setTFromClientX(clientX){
+      const rect=chart.getBoundingClientRect();
+      const x=clientX-rect.left;
+      const clampedX=Math.max(plotLeft(),Math.min(plotLeft()+plotWidth(),x));
+      state.currentT=Math.min(state.Tmax,Math.max(state.Tmin,TForX(clampedX)));
+      updateVisuals();
+    }
+    chart.addEventListener('mousedown',e=>{setTFromClientX(e.clientX);dragging=true;});
+    window.addEventListener('mousemove',e=>{if(dragging)setTFromClientX(e.clientX);});
+    window.addEventListener('mouseup',()=>{dragging=false;});
+    chart.addEventListener('mouseleave',()=>{dragging=false;});
+
+    ['input','change'].forEach(ev=>{
+      [seqEl,saltEl,mgEl,concEl,winEl].forEach(el=>el.addEventListener(ev,recompute));
+      [kEl,modeEl,LEl,piMEl,epsEl].forEach(el=>el.addEventListener(ev,updateVisuals));
+    });
+
+    demoBtn.addEventListener('click',()=>{
+      seqEl.value='ATGCGCATTAATCGGATGCCGCTTAGCTAGGCGATATATTTGCGCGCGGATCCGATATGCGCGTATATATGC';
+      recompute();
+    });
+    clearBtn.addEventListener('click',()=>{seqEl.value='';recompute();});
+
+    seqEl.value='ATGCGCATTAATCGGATGCC';
+    recompute();
+  </script>
+</body>
+</html>
