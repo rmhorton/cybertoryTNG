@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNA Melting – Reference vs Simulation Tuner</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #111827; --muted: #9ca3af; --text: #e5e7eb; --accent: #38bdf8; --ok:#22c55e; --warn:#f97316; --err:#ef4444;
+    }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+    .wrap{max-width:1200px;margin:20px auto;padding:0 16px}
+    h1{margin:6px 0 2px;font-size:28px}
+    .sub{color:var(--muted);margin-bottom:18px}
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px}
+    .hd{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:700;color:#cbd5e1}
+    .bd{padding:12px 14px}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 2px 6px}
+    select,input{width:100%;background:#0b1220;border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:12px;padding:9px 10px;font-size:14px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .pill{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);padding:8px 10px;border-radius:12px;font-size:13px}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px}
+    .btn{cursor:pointer;display:inline-block;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(56,189,248,.25),rgba(56,189,248,.15));color:white;border-radius:12px;padding:9px 12px;font-weight:700}
+    .btn.secondary{background:linear-gradient(180deg,rgba(167,139,250,.2),rgba(167,139,250,.1))}
+    .note{font-size:12px;color:var(--muted)}
+    .err{color:#fecaca;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);padding:8px 10px;border-radius:10px;display:none}
+    canvas{width:100%;height:360px;background:#0b1220;border-radius:12px;border:1px solid rgba(255,255,255,.08);}
+    .legend{display:flex;gap:12px;margin:8px 0}
+    .lg{display:flex;align-items:center;gap:6px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .hr{height:1px;background:rgba(255,255,255,.08);margin:12px 0}
+    .rowEnd{display:flex;gap:10px;align-items:center;justify-content:flex-start;margin-top:8px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DNA Melting – Reference vs Simulation Tuner</h1>
+  <div class="sub">Load an experimental reference curve, pick a simulation algorithm from <code>meltingLib.js</code>, and tune parameters to match. Override the temperature axis to compare on a common grid.</div>
+  
+  <div class="grid">
+    <!-- Controls -->
+    <div class="card">
+      <div class="hd">Reference & Inputs</div>
+      <div class="bd">
+        <label>Reference dataset</label>
+        <select id="refSelect"></select>
+        <div class="note" id="seqMeta">—</div>
+        <div class="row3">
+          <div>
+            <label>[Na⁺] (M)</label>
+            <input id="Na" type="number" value="0.05" step="0.001" />
+          </div>
+          <div>
+            <label>[Mg²⁺] (M)</label>
+            <input id="Mg" type="number" value="0.001" step="0.0001" />
+          </div>
+          <div>
+            <label>Strand conc (M)</label>
+            <input id="conc" type="number" value="0.0000005" step="1e-7" />
+          </div>
+        </div>
+        <div class="hr"></div>
+        <label>Simulation algorithm</label>
+        <select id="algo"></select>
+
+        <div class="row3" style="margin-top:6px">
+          <div>
+            <label>Window</label>
+            <input id="win" type="number" value="15" min="5" max="101" step="2" />
+          </div>
+          <div>
+            <label>Slope k</label>
+            <input id="k" type="number" value="0.8" step="0.05" />
+          </div>
+          <div>
+            <label>Cooperativity</label>
+            <input id="coop" type="number" value="0.5" min="0" max="5" step="0.1" />
+          </div>
+        </div>
+        <div class="row3">
+          <div>
+            <label>Domain L</label>
+            <input id="L" type="number" value="20" />
+          </div>
+          <div>
+            <label>π<sub>M</sub></label>
+            <input id="piM" type="number" value="0.5" step="0.01" />
+          </div>
+          <div>
+            <label>ε</label>
+            <input id="eps" type="number" value="1e-6" step="1e-6" />
+          </div>
+        </div>
+
+        <div class="row2" style="margin-top:8px;align-items:end">
+          <div>
+            <label>Override temperature range (°C)</label>
+            <div class="row2">
+              <input id="tmin" type="number" placeholder="Tmin" />
+              <input id="tmax" type="number" placeholder="Tmax" />
+            </div>
+          </div>
+          <div>
+            <label>Resolution (ΔT, °C)</label>
+            <input id="tstep" type="number" value="0.1" step="0.1" min="0.01" />
+          </div>
+        </div>
+
+        <div class="rowEnd">
+          <button class="btn" id="simulate">Run simulation</button>
+          <button class="btn secondary" id="reset">Reset params</button>
+          <span class="note">Axes & reference redraw automatically when you change Tmin/Tmax/ΔT.</span>
+        </div>
+        <div id="err" class="err" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Viz -->
+    <div class="card">
+      <div class="hd">Visualization</div>
+      <div class="bd">
+        <div class="legend">
+          <div class="lg"><span class="dot" style="background:#94a3b8"></span> Reference (experimental)</div>
+          <div class="lg"><span class="dot" style="background:#38bdf8"></span> Simulation</div>
+        </div>
+        <canvas id="plot" width="960" height="360"></canvas>
+        <div class="stats">
+          <div class="pill">Length: <span id="len">—</span></div>
+          <div class="pill">Ref T-range: <span id="trange">—</span></div>
+          <div class="pill">RMSE: <span id="rmse">—</span></div>
+          <div class="pill">MAE: <span id="mae">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Load data & library -->
+<script src="Phongroop_ref_curves.js"></script>
+<script src="meltingLib.js"></script>
+<script>
+(function(){
+  // ---------- Data ----------
+  const refData = window.refData || {};
+  const entries = Object.entries(refData).map(([id, obj])=>({
+    id,
+    sequence: Array.isArray(obj.sequence)? (obj.sequence[0]||'') : (obj.sequence||''),
+    temps: obj.melting_curve?.temperature || [],
+    fracs: obj.melting_curve?.fraction_melted || []
+  })).filter(e=> e.sequence && e.temps.length && e.fracs.length);
+
+  // ---------- Elements ----------
+  const refSel = document.getElementById('refSelect');
+  const seqMeta = document.getElementById('seqMeta');
+  const NaEl = document.getElementById('Na');
+  const MgEl = document.getElementById('Mg');
+  const concEl = document.getElementById('conc');
+  const algoEl = document.getElementById('algo');
+  const winEl = document.getElementById('win');
+  const kEl = document.getElementById('k');
+  const coopEl = document.getElementById('coop');
+  const LEl = document.getElementById('L');
+  const piMEl = document.getElementById('piM');
+  const epsEl = document.getElementById('eps');
+  const tminEl = document.getElementById('tmin');
+  const tmaxEl = document.getElementById('tmax');
+  const tstepEl = document.getElementById('tstep');
+  const plot = document.getElementById('plot');
+  const errEl = document.getElementById('err');
+  const lenEl = document.getElementById('len');
+  const trangeEl = document.getElementById('trange');
+  const rmseEl = document.getElementById('rmse');
+  const maeEl = document.getElementById('mae');
+
+  // ---------- Populate dropdowns ----------
+  for(const e of entries){
+    const opt = document.createElement('option');
+    opt.value = e.id; opt.textContent = e.id; refSel.appendChild(opt);
+  }
+  // Algorithm options (from meltingLib)
+  const algoOptions = [
+    ['independent','Independent'],
+    ['posterior','HMM Posterior'],
+    ['viterbi','HMM Viterbi'],
+    ['thermo','Thermodynamic (Na⁺/Mg²⁺)'],
+    ['hmm','Pedagogical HMM'],
+    ['transferFast','Transfer Matrix (Fast)'],
+    ['transfer','Transfer Matrix (Full)'],
+    ['partitionFast','Partition Function (Fast)'],
+    ['partition','Partition Function (Full)'],
+    ['sigmoid','Simple Sigmoid']
+  ];
+  algoOptions.forEach(([v,lab],i)=>{
+    const o=document.createElement('option'); o.value=v; o.textContent=lab; if(i===0) o.selected=true; algoEl.appendChild(o);
+  });
+
+  // ---------- State ----------
+  let state = {
+    ref: null,          // {id, sequence, temps, fracs}
+    sim: null,          // {temps, fracs}
+    axisTemps: [],      // axis grid based on override
+    cursor: null        // scrub cursor temperature
+  };
+
+  // ---------- Helpers ----------
+  function initRef(id){
+    const e = entries.find(x=>x.id===id) || entries[0];
+    state.ref = e;
+    const minT = Math.min(...e.temps), maxT = Math.max(...e.temps);
+    if(!tminEl.value) tminEl.value = minT.toFixed(1);
+    if(!tmaxEl.value) tmaxEl.value = maxT.toFixed(1);
+    lenEl.textContent = e.sequence.length;
+    trangeEl.textContent = `${minT.toFixed(1)}–${maxT.toFixed(1)} °C`;
+    seqMeta.textContent = `${e.id} • ${e.sequence.length} nt`;
+    rebuildAxis();
+    draw();
+  }
+
+  function rebuildAxis(){
+    const tmin = safeNum(tminEl.value, Math.min(...state.ref.temps));
+    const tmax = safeNum(tmaxEl.value, Math.max(...state.ref.temps));
+    const step = Math.max(0.01, safeNum(tstepEl.value, 0.1));
+    const n = Math.max(2, Math.floor((tmax - tmin)/step) + 1);
+    state.axisTemps = Array.from({length:n}, (_,i)=> tmin + i*step);
+  }
+
+  function safeNum(v, fallback){
+    const x = parseFloat(v); return Number.isFinite(x)? x : fallback;
+  }
+
+  function interpToGrid(srcX, srcY, tgtX){
+    if(!srcX.length || !tgtX.length) return [];
+    const out=[]; let j=0;
+    for(const x of tgtX){
+      while(j < srcX.length-1 && srcX[j+1] < x) j++;
+      if(x <= srcX[0]) out.push(srcY[0]);
+      else if(x >= srcX[srcX.length-1]) out.push(srcY[srcY.length-1]);
+      else {
+        const x0=srcX[j], x1=srcX[j+1], y0=srcY[j], y1=srcY[j+1];
+        const t=(x-x0)/(x1-x0); out.push(y0 + t*(y1-y0));
+      }
+    }
+    return out;
+  }
+
+  function computeMetrics(ref, sim){
+    const n = Math.min(ref.length, sim.length);
+    if(!n) return {rmse:NaN, mae:NaN};
+    let se=0, ae=0, m=0;
+    for(let i=0;i<n;i++){
+      const r=ref[i], s=sim[i];
+      if(Number.isFinite(r) && Number.isFinite(s)){
+        const d=r-s; se+=d*d; ae+=Math.abs(d); m++;
+      }
+    }
+    return {rmse: m? Math.sqrt(se/m):NaN, mae: m? ae/m:NaN};
+  }
+
+  // ---------- Drawing ----------
+  function draw(){
+    const ctx = plot.getContext('2d');
+    const W=plot.width, H=plot.height;
+    ctx.clearRect(0,0,W,H);
+
+    const left=48, right=W-16, top=16, bot=H-34;
+    ctx.strokeStyle='rgba(255,255,255,.2)';
+    ctx.strokeRect(left, top, right-left, bot-top);
+
+    const temps = state.axisTemps.length ? state.axisTemps : (state.ref?.temps || []);
+    if(!temps.length) return;
+    const Tmin = Math.min(...temps), Tmax = Math.max(...temps);
+    const xs = T=> left + (right-left) * ((T - Tmin) / (Tmax - Tmin));
+    const ys = y=> bot - (bot-top) * y; // y in [0,1]
+
+    // X ticks & labels
+    ctx.fillStyle='#9ca3af'; ctx.font='12px ui-sans-serif'; ctx.textAlign='center';
+    for(let i=0;i<=5;i++){
+      const T = Tmin + (i/5)*(Tmax-Tmin); const x = xs(T);
+      ctx.fillText(T.toFixed(1), x, H-12);
+      ctx.beginPath(); ctx.moveTo(x, bot); ctx.lineTo(x, bot+4); ctx.stroke();
+    }
+    // Y ticks 0..1
+    ctx.textAlign='right';
+    for(let i=0;i<=5;i++){
+      const yv = i/5; const y = ys(yv);
+      ctx.fillText(yv.toFixed(1), left-6, y+4);
+      ctx.beginPath(); ctx.moveTo(left-4, y); ctx.lineTo(left, y); ctx.stroke();
+    }
+
+    // Reference curve (sampled to axis grid for smoothness)
+    if(state.ref){
+      const rY = interpToGrid(state.ref.temps, state.ref.fracs, temps);
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth=2; ctx.beginPath();
+      for(let i=0;i<temps.length;i++){
+        const x=xs(temps[i]), y=ys(rY[i]);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      // reference points at original positions
+      ctx.fillStyle='#cbd5e1';
+      for(let i=0;i<state.ref.temps.length;i++){
+        const x=xs(state.ref.temps[i]), y=ys(state.ref.fracs[i]);
+        ctx.beginPath(); ctx.arc(x,y,2.3,0,Math.PI*2); ctx.fill();
+      }
+    }
+
+    // Simulated curve
+    if(state.sim?.temps?.length){
+      const sT = state.sim.temps, sY = state.sim.fracs;
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth=2.2; ctx.beginPath();
+      for(let i=0;i<sT.length;i++){
+        const x=xs(sT[i]), y=ys(sY[i]);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+
+    // Scrub cursor
+    if(Number.isFinite(state.cursor)){
+      const x = xs(state.cursor); ctx.setLineDash([4,3]);
+      ctx.strokeStyle='rgba(239,68,68,.9)'; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  // ---------- Simulation ----------
+  function run(){
+    try{
+      errEl.style.display='none';
+      if(!state.ref) throw new Error('No reference selected.');
+
+      rebuildAxis();
+      const temps = state.axisTemps.slice();
+
+      // conditions: UI values are in M; library expects mM for Na/Mg and M for conc
+      const Na = safeNum(NaEl.value, 0.05);
+      const Mg = safeNum(MgEl.value, 0.001);
+      const conc = safeNum(concEl.value, 5e-7);
+      const conditions = { Na: Na*1000, Mg: Mg*1000, conc };
+
+      const params = {
+        window: +winEl.value || 15,
+        k: +kEl.value || 0.8,
+        L: +LEl.value || 20,
+        piM: +piMEl.value || 0.5,
+        eps: +epsEl.value || 1e-6,
+        cooperativity: +coopEl.value || 0.5
+      };
+
+      const algo = algoEl.value;
+      const seq = state.ref.sequence;
+      let sim;
+      switch(algo){
+        case 'posterior': sim = melt.Simulate.simulateHMMPosterior({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'viterbi': sim = melt.Simulate.simulateHMMViterbi({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'thermo': sim = melt.Simulate.simulateThermodynamic({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'hmm': sim = melt.Simulate.simulateHMM({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'transferFast': sim = melt.Simulate.simulateTransferMatrixFast({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'transfer': sim = melt.Simulate.simulateTransferMatrix({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'partitionFast': sim = melt.Simulate.simulatePartitionFunctionFast({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'partition': sim = melt.Simulate.simulatePartitionFunction({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
+        case 'sigmoid': sim = melt.Simulate.simulateSigmoid({sequence:seq, temperatures:temps, params}); break;
+        default: sim = melt.Simulate.simulateIndependent({sequence:seq, temperatures:temps, conditions, params, options:{}});
+      }
+
+      state.sim = { temps: sim.temperatures, fracs: sim.fractionMelted };
+
+      // compute metrics on the axis grid
+      const refOnAxis = interpToGrid(state.ref.temps, state.ref.fracs, state.axisTemps);
+      const {rmse, mae} = computeMetrics(refOnAxis, state.sim.fracs);
+      rmseEl.textContent = Number.isFinite(rmse)? rmse.toFixed(4) : '—';
+      maeEl.textContent = Number.isFinite(mae)? mae.toFixed(4) : '—';
+
+      draw();
+    }catch(err){
+      console.error(err);
+      errEl.textContent = err.message || String(err);
+      errEl.style.display='block';
+    }
+  }
+
+  // ---------- Interactions ----------
+  function setCursorFromEvent(e){
+    const rect = plot.getBoundingClientRect();
+    const left=48, right=plot.width-16;
+    const x = e.clientX - rect.left; 
+    const temps = state.axisTemps.length ? state.axisTemps : (state.ref?.temps||[]);
+    if(!temps.length) return;
+    const Tmin = temps[0], Tmax = temps[temps.length-1];
+    const t = Tmin + (Math.max(left, Math.min(right,x)) - left) / (right-left) * (Tmax-Tmin);
+    state.cursor = t; draw();
+  }
+
+  let dragging=false;
+  plot.addEventListener('mousedown', e=>{ dragging=true; setCursorFromEvent(e); });
+  window.addEventListener('mousemove', e=>{ if(dragging) setCursorFromEvent(e); });
+  window.addEventListener('mouseup', ()=> dragging=false);
+
+  document.getElementById('simulate').addEventListener('click', run);
+  document.getElementById('reset').addEventListener('click', ()=>{
+    NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005; 
+    winEl.value=15; kEl.value=0.8; LEl.value=20; piMEl.value=0.5; epsEl.value=1e-6; coopEl.value=0.5; 
+    // reset axis to reference bounds
+    if(state.ref){ tminEl.value=Math.min(...state.ref.temps).toFixed(1); tmaxEl.value=Math.max(...state.ref.temps).toFixed(1); }
+    rebuildAxis(); draw();
+  });
+
+  // live updates for axis controls
+  [tminEl,tmaxEl,tstepEl].forEach(el=>{
+    el.addEventListener('input', ()=>{ rebuildAxis(); draw(); });
+    el.addEventListener('change', ()=>{ rebuildAxis(); draw(); });
+  });
+
+  // run-on-change for sim/params
+  [refSel, algoEl, NaEl, MgEl, concEl, winEl, kEl, coopEl, LEl, piMEl, epsEl].forEach(el=>{
+    el.addEventListener('change', e=>{
+      if(e.target===refSel){ initRef(refSel.value); }
+      run();
+    });
+  });
+
+  // ---------- Init ----------
+  if(entries.length){
+    initRef(entries[0].id);
+    refSel.value = entries[0].id;
+    run();
+  } else {
+    document.getElementById('err').textContent = 'No valid reference entries found in data file.';
+    document.getElementById('err').style.display = 'block';
+  }
+})();
+</script>
+</body>
+</html>
