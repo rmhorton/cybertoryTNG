@@ -72,8 +72,8 @@
           <div>
             <label>Override temperature range (°C)</label>
             <div class="row2">
-              <input id="tmin" type="number" placeholder="Tmin" />
-              <input id="tmax" type="number" placeholder="Tmax" />
+              <input id="tmin" type="number" value="40" step="0.1" />
+              <input id="tmax" type="number" value="100" step="0.1" />
             </div>
           </div>
           <div>
@@ -172,6 +172,7 @@
     cursor: null        // scrub cursor temperature
   };
   let runTimer = null;
+  const DEFAULT_TEMP_RANGE = { min: 40, max: 100, step: 0.1 };
 
   const paramDefaults = {
     window: 15,
@@ -278,8 +279,8 @@
     const e = entries.find(x=>x.id===id) || entries[0];
     state.ref = e;
     const minT = Math.min(...e.temps), maxT = Math.max(...e.temps);
-    if(!tminEl.value) tminEl.value = minT.toFixed(1);
-    if(!tmaxEl.value) tmaxEl.value = maxT.toFixed(1);
+    if(!tminEl.value) tminEl.value = DEFAULT_TEMP_RANGE.min.toFixed(1);
+    if(!tmaxEl.value) tmaxEl.value = DEFAULT_TEMP_RANGE.max.toFixed(1);
     lenEl.textContent = e.sequence.length;
     trangeEl.textContent = `${minT.toFixed(1)}–${maxT.toFixed(1)} °C`;
     seqMeta.textContent = `${e.id} • ${e.sequence.length} nt`;
@@ -288,15 +289,22 @@
   }
 
   function rebuildAxis(){
-    const tmin = safeNum(tminEl.value, Math.min(...state.ref.temps));
-    const tmax = safeNum(tmaxEl.value, Math.max(...state.ref.temps));
-    const step = Math.max(0.01, safeNum(tstepEl.value, 0.1));
+    const refTemps = state.ref?.temps || [];
+    const refMin = refTemps.length ? Math.min(...refTemps) : DEFAULT_TEMP_RANGE.min;
+    const refMax = refTemps.length ? Math.max(...refTemps) : DEFAULT_TEMP_RANGE.max;
+    const tmin = safeNum(tminEl.value, refMin, DEFAULT_TEMP_RANGE.min);
+    let tmax = safeNum(tmaxEl.value, refMax, DEFAULT_TEMP_RANGE.max);
+    const stepInput = safeNum(tstepEl.value, DEFAULT_TEMP_RANGE.step, DEFAULT_TEMP_RANGE.step);
+    const step = Math.max(0.01, stepInput);
+    if (tmax <= tmin) tmax = tmin + step;
     const n = Math.max(2, Math.floor((tmax - tmin)/step) + 1);
     state.axisTemps = Array.from({length:n}, (_,i)=> tmin + i*step);
   }
 
-  function safeNum(v, fallback){
-    const x = parseFloat(v); return Number.isFinite(x)? x : fallback;
+  function safeNum(v, fallback, hardDefault){
+    const defaultVal = Number.isFinite(fallback) ? fallback : hardDefault;
+    const x = parseFloat(v);
+    return Number.isFinite(x) ? x : defaultVal;
   }
 
   function interpToGrid(srcX, srcY, tgtX){
@@ -462,11 +470,9 @@
   document.getElementById('reset').addEventListener('click', ()=>{
     NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005;
     resetParamsToDefaults();
-    if(state.ref){
-      tminEl.value=Math.min(...state.ref.temps).toFixed(1);
-      tmaxEl.value=Math.max(...state.ref.temps).toFixed(1);
-    }
-    tstepEl.value = 0.1;
+    tminEl.value = DEFAULT_TEMP_RANGE.min.toFixed(1);
+    tmaxEl.value = DEFAULT_TEMP_RANGE.max.toFixed(1);
+    tstepEl.value = DEFAULT_TEMP_RANGE.step;
     scheduleRun(true);
   });
 
