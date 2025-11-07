@@ -83,9 +83,8 @@
         </div>
 
         <div class="rowEnd">
-          <button class="btn" id="simulate">Run simulation</button>
           <button class="btn secondary" id="reset">Reset params</button>
-          <span class="note">Axes & reference redraw automatically when you change Tmin/Tmax/ΔT.</span>
+          <span class="note">Simulations update automatically when settings change.</span>
         </div>
         <div id="err" class="err" style="margin-top:10px"></div>
       </div>
@@ -172,6 +171,7 @@
     axisTemps: [],      // axis grid based on override
     cursor: null        // scrub cursor temperature
   };
+  let runTimer = null;
 
   const paramDefaults = {
     window: 15,
@@ -203,6 +203,16 @@
   };
   const paramState = { ...paramDefaults };
 
+  function scheduleRun(immediate = false) {
+    if (immediate) {
+      if (runTimer) clearTimeout(runTimer);
+      run();
+      return;
+    }
+    if (runTimer) clearTimeout(runTimer);
+    runTimer = setTimeout(run, 60);
+  }
+
   function createParamField(key, def){
     const wrapper = document.createElement('div');
     wrapper.className = 'param-field';
@@ -221,7 +231,7 @@
           const fallback = def?.default ?? paramDefaults[key] ?? 0;
           paramState[key] = fallback;
           input.value = fallback;
-          run();
+          scheduleRun();
         }
         return;
       }
@@ -231,7 +241,7 @@
       if(typeof def?.max === 'number') val = Math.min(def.max, val);
       paramState[key] = val;
       input.value = val;
-      run();
+      scheduleRun();
     };
     input.addEventListener('input', handler);
     input.addEventListener('change', handler);
@@ -449,7 +459,6 @@
   window.addEventListener('mousemove', e=>{ if(dragging) setCursorFromEvent(e); });
   window.addEventListener('mouseup', ()=> dragging=false);
 
-  document.getElementById('simulate').addEventListener('click', run);
   document.getElementById('reset').addEventListener('click', ()=>{
     NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005;
     resetParamsToDefaults();
@@ -458,31 +467,31 @@
       tmaxEl.value=Math.max(...state.ref.temps).toFixed(1);
     }
     tstepEl.value = 0.1;
-    run();
+    scheduleRun(true);
   });
 
   // live updates for axis controls
   [tminEl,tmaxEl,tstepEl].forEach(el=>{
-    const handler = ()=> run();
+    const handler = ()=> scheduleRun();
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
   });
 
   const conditionInputs = [NaEl, MgEl, concEl];
   conditionInputs.forEach(el=>{
-    const handler = ()=> run();
+    const handler = ()=> scheduleRun();
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
   });
 
   refSel.addEventListener('change', ()=>{
     initRef(refSel.value);
-    run();
+    scheduleRun(true);
   });
 
   algoEl.addEventListener('change', ()=>{
     renderParamControls(algoEl.value);
-    run();
+    scheduleRun();
   });
 
   renderParamControls(algoEl.value);
