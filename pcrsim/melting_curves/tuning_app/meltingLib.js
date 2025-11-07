@@ -268,12 +268,28 @@
   };
 
   // --- Simple Sigmoid Model ---
-  melt.Simulate.simulateSigmoid = function ({ sequence, temperatures, params }) {
-    const k = params?.k ?? 0.8;
-    const Tm = params?.Tm ?? 70.0;
-    const fractionMelted = temperatures.map(T =>
-        1 / (1 + Math.exp(-k * (T - Tm)))
+  melt.Simulate.simulateSigmoid = function ({ sequence, temperatures, conditions, params, options }) {
+    const seq = melt.Thermo.sanitizeSeq(sequence);
+    const Na = (conditions?.Na ?? 50) / 1000;
+    const Mg = (conditions?.Mg ?? 1) / 1000;
+    const conc = conditions?.conc ?? 0.5e-6;
+    const baseK = Math.max(1e-3, params?.k ?? 0.8);
+    const ionicStrength = Math.max(1e-6, Na + 4 * Mg + conc);
+
+    const seqTm = seq.length >= 2 ? melt.Thermo.computeTm(seq, conc, Na) : NaN;
+    const fallbackTm = params?.Tm ?? 70.0;
+    const adjustedTm = melt.Thermo.adjustTmForIons(
+      isFinite(seqTm) ? seqTm : fallbackTm,
+      Na,
+      Mg
     );
+
+    // Higher ionic strength narrows the transition; baseK scales steepness.
+    const steepness = baseK / (1 + 5 * ionicStrength);
+    const fractionMelted = temperatures.map(T =>
+      1 / (1 + Math.exp(-(T - adjustedTm) / steepness))
+    );
+
     return { temperatures, fractionMelted };
   };
 

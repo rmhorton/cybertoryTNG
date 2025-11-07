@@ -20,6 +20,8 @@
     select,input{width:100%;background:#0b1220;border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:12px;padding:9px 10px;font-size:14px}
     .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .param-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+    .param-field{display:flex;flex-direction:column}
     .pill{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);padding:8px 10px;border-radius:12px;font-size:13px}
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px}
     .btn{cursor:pointer;display:inline-block;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(56,189,248,.25),rgba(56,189,248,.15));color:white;border-radius:12px;padding:9px 12px;font-weight:700}
@@ -64,35 +66,7 @@
         <div class="hr"></div>
         <label>Simulation algorithm</label>
         <select id="algo"></select>
-
-        <div class="row3" style="margin-top:6px">
-          <div>
-            <label>Window</label>
-            <input id="win" type="number" value="15" min="5" max="101" step="2" />
-          </div>
-          <div>
-            <label>Slope k</label>
-            <input id="k" type="number" value="0.8" step="0.05" />
-          </div>
-          <div>
-            <label>Cooperativity</label>
-            <input id="coop" type="number" value="0.5" min="0" max="5" step="0.1" />
-          </div>
-        </div>
-        <div class="row3">
-          <div>
-            <label>Domain L</label>
-            <input id="L" type="number" value="20" />
-          </div>
-          <div>
-            <label>π<sub>M</sub></label>
-            <input id="piM" type="number" value="0.5" step="0.01" />
-          </div>
-          <div>
-            <label>ε</label>
-            <input id="eps" type="number" value="1e-6" step="1e-6" />
-          </div>
-        </div>
+        <div id="paramControls" class="param-grid"></div>
 
         <div class="row2" style="margin-top:8px;align-items:end">
           <div>
@@ -158,12 +132,7 @@
   const MgEl = document.getElementById('Mg');
   const concEl = document.getElementById('conc');
   const algoEl = document.getElementById('algo');
-  const winEl = document.getElementById('win');
-  const kEl = document.getElementById('k');
-  const coopEl = document.getElementById('coop');
-  const LEl = document.getElementById('L');
-  const piMEl = document.getElementById('piM');
-  const epsEl = document.getElementById('eps');
+  const paramControlsEl = document.getElementById('paramControls');
   const tminEl = document.getElementById('tmin');
   const tmaxEl = document.getElementById('tmax');
   const tstepEl = document.getElementById('tstep');
@@ -203,6 +172,96 @@
     axisTemps: [],      // axis grid based on override
     cursor: null        // scrub cursor temperature
   };
+
+  const paramDefaults = {
+    window: 15,
+    k: 0.8,
+    cooperativity: 0.5,
+    L: 20,
+    piM: 0.5,
+    eps: 1e-6
+  };
+  const paramDefs = {
+    window: { label: 'Window', min: 5, max: 101, step: 2, default: 15 },
+    k: { label: 'Slope k', min: 0.05, max: 5, step: 0.05, default: 0.8 },
+    cooperativity: { label: 'Cooperativity', min: 0, max: 5, step: 0.1, default: 0.5 },
+    L: { label: 'Domain L', min: 2, max: 200, step: 1, default: 20 },
+    piM: { label: 'π<sub>M</sub>', min: 0, max: 1, step: 0.01, default: 0.5 },
+    eps: { label: 'ε', min: 1e-7, max: 1e-1, step: 1e-6, default: 1e-6 }
+  };
+  const paramSchema = {
+    independent: ['window', 'k'],
+    posterior: ['window', 'k', 'L', 'piM', 'eps'],
+    viterbi: ['window', 'k', 'L', 'piM', 'eps'],
+    thermo: ['window', 'k'],
+    hmm: ['window', 'k', 'L', 'piM', 'eps', 'cooperativity'],
+    transferFast: ['window', 'cooperativity'],
+    transfer: ['cooperativity'],
+    partitionFast: ['window', 'cooperativity'],
+    partition: ['cooperativity'],
+    sigmoid: ['k']
+  };
+  const paramState = { ...paramDefaults };
+
+  function createParamField(key, def){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'param-field';
+    const label = document.createElement('label');
+    label.innerHTML = def?.label || key;
+    const input = document.createElement('input');
+    input.type = 'number';
+    if(def?.step !== undefined) input.step = def.step;
+    if(def?.min !== undefined) input.min = def.min;
+    if(def?.max !== undefined) input.max = def.max;
+    const current = paramState[key] ?? def?.default ?? 0;
+    input.value = current;
+    const handler = (evt)=>{
+      if(input.value === ''){
+        if(evt.type === 'change'){
+          const fallback = def?.default ?? paramDefaults[key] ?? 0;
+          paramState[key] = fallback;
+          input.value = fallback;
+          run();
+        }
+        return;
+      }
+      let val = parseFloat(input.value);
+      if(!Number.isFinite(val)) return;
+      if(typeof def?.min === 'number') val = Math.max(def.min, val);
+      if(typeof def?.max === 'number') val = Math.min(def.max, val);
+      paramState[key] = val;
+      input.value = val;
+      run();
+    };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+    wrapper.appendChild(label);
+    wrapper.appendChild(input);
+    return wrapper;
+  }
+
+  function renderParamControls(algo){
+    paramControlsEl.innerHTML = '';
+    const keys = paramSchema[algo] || [];
+    if(!keys.length){
+      const msg = document.createElement('div');
+      msg.className = 'note';
+      msg.style.gridColumn = '1 / -1';
+      msg.textContent = 'No adjustable parameters for this algorithm.';
+      paramControlsEl.appendChild(msg);
+      return;
+    }
+    keys.forEach(key=>{
+      const def = paramDefs[key];
+      if(!def) return;
+      paramControlsEl.appendChild(createParamField(key, def));
+    });
+  }
+
+  function resetParamsToDefaults(){
+    Object.keys(paramDefaults).forEach(key=> paramState[key] = paramDefaults[key]);
+    renderParamControls(algoEl.value);
+  }
 
   // ---------- Helpers ----------
   function initRef(id){
@@ -339,14 +398,7 @@
       const conc = safeNum(concEl.value, 5e-7);
       const conditions = { Na: Na*1000, Mg: Mg*1000, conc };
 
-      const params = {
-        window: +winEl.value || 15,
-        k: +kEl.value || 0.8,
-        L: +LEl.value || 20,
-        piM: +piMEl.value || 0.5,
-        eps: +epsEl.value || 1e-6,
-        cooperativity: +coopEl.value || 0.5
-      };
+      const params = { ...paramState };
 
       const algo = algoEl.value;
       const seq = state.ref.sequence;
@@ -360,7 +412,7 @@
         case 'transfer': sim = melt.Simulate.simulateTransferMatrix({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
         case 'partitionFast': sim = melt.Simulate.simulatePartitionFunctionFast({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
         case 'partition': sim = melt.Simulate.simulatePartitionFunction({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'sigmoid': sim = melt.Simulate.simulateSigmoid({sequence:seq, temperatures:temps, params}); break;
+        case 'sigmoid': sim = melt.Simulate.simulateSigmoid({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
         default: sim = melt.Simulate.simulateIndependent({sequence:seq, temperatures:temps, conditions, params, options:{}});
       }
 
@@ -399,26 +451,41 @@
 
   document.getElementById('simulate').addEventListener('click', run);
   document.getElementById('reset').addEventListener('click', ()=>{
-    NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005; 
-    winEl.value=15; kEl.value=0.8; LEl.value=20; piMEl.value=0.5; epsEl.value=1e-6; coopEl.value=0.5; 
-    // reset axis to reference bounds
-    if(state.ref){ tminEl.value=Math.min(...state.ref.temps).toFixed(1); tmaxEl.value=Math.max(...state.ref.temps).toFixed(1); }
-    rebuildAxis(); draw();
+    NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005;
+    resetParamsToDefaults();
+    if(state.ref){
+      tminEl.value=Math.min(...state.ref.temps).toFixed(1);
+      tmaxEl.value=Math.max(...state.ref.temps).toFixed(1);
+    }
+    tstepEl.value = 0.1;
+    run();
   });
 
   // live updates for axis controls
   [tminEl,tmaxEl,tstepEl].forEach(el=>{
-    el.addEventListener('input', ()=>{ rebuildAxis(); draw(); });
-    el.addEventListener('change', ()=>{ rebuildAxis(); draw(); });
+    const handler = ()=> run();
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
   });
 
-  // run-on-change for sim/params
-  [refSel, algoEl, NaEl, MgEl, concEl, winEl, kEl, coopEl, LEl, piMEl, epsEl].forEach(el=>{
-    el.addEventListener('change', e=>{
-      if(e.target===refSel){ initRef(refSel.value); }
-      run();
-    });
+  const conditionInputs = [NaEl, MgEl, concEl];
+  conditionInputs.forEach(el=>{
+    const handler = ()=> run();
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
   });
+
+  refSel.addEventListener('change', ()=>{
+    initRef(refSel.value);
+    run();
+  });
+
+  algoEl.addEventListener('change', ()=>{
+    renderParamControls(algoEl.value);
+    run();
+  });
+
+  renderParamControls(algoEl.value);
 
   // ---------- Init ----------
   if(entries.length){
