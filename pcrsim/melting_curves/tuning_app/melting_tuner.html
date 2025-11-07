@@ -142,22 +142,14 @@
     const opt = document.createElement('option');
     opt.value = e.id; opt.textContent = e.id; refSel.appendChild(opt);
   }
-  // Algorithm options (from meltingLib)
-  const algoOptions = [
-    ['independent','Independent'],
-    ['posterior','HMM Posterior'],
-    ['viterbi','HMM Viterbi'],
-    ['thermo','Thermodynamic (Na⁺/Mg²⁺)'],
-    ['hmm','Pedagogical HMM'],
-    ['transferFast','Transfer Matrix (Fast)'],
-    ['transfer','Transfer Matrix (Full)'],
-    ['partitionFast','Partition Function (Fast)'],
-    ['partition','Partition Function (Full)'],
-    ['polymer','Polymer (Statistical Mechanics)'],
-    ['sigmoid','Simple Sigmoid']
-  ];
-  algoOptions.forEach(([v,lab],i)=>{
-    const o=document.createElement('option'); o.value=v; o.textContent=lab; if(i===0) o.selected=true; algoEl.appendChild(o);
+  const algoList = (window.melt?.meta?.algorithms) || [];
+  if (!algoList.length) algoList.push({ key: 'independent', label: 'Independent' });
+  algoList.forEach((entry, i)=>{
+    const opt = document.createElement('option');
+    opt.value = entry?.key || '';
+    opt.textContent = entry?.label || entry?.key || `Algorithm ${i+1}`;
+    if(i===0) opt.selected = true;
+    algoEl.appendChild(opt);
   });
 
   // ---------- State ----------
@@ -168,20 +160,6 @@
   };
   let runTimer = null;
   const DEFAULT_TEMP_RANGE = { min: 40, max: 100, step: 0.1 };
-  const simulationMap = {
-    independent: melt.Simulate.simulateIndependent,
-    posterior: melt.Simulate.simulateHMMPosterior,
-    viterbi: melt.Simulate.simulateHMMViterbi,
-    thermo: melt.Simulate.simulateThermodynamic,
-    hmm: melt.Simulate.simulateHMM,
-    transferFast: melt.Simulate.simulateTransferMatrixFast,
-    transfer: melt.Simulate.simulateTransferMatrix,
-    partitionFast: melt.Simulate.simulatePartitionFunctionFast,
-    partition: melt.Simulate.simulatePartitionFunction,
-    polymer: melt.Simulate.simulatePolymer,
-    sigmoid: melt.Simulate.simulateSigmoid
-  };
-
   const paramDefaults = {
     window: 15,
     k: 0.8,
@@ -431,10 +409,16 @@
 
       const params = { ...paramState };
 
-      const algo = algoEl.value;
+      const algo = algoEl.value || (algoList[0]?.key) || 'independent';
       const seq = state.ref.sequence;
-      const handler = simulationMap[algo] || simulationMap.independent;
-      const sim = handler({ sequence: seq, temperatures: temps, conditions, params, options: {} }) || {};
+      const sim = melt.run({
+        algorithm: algo,
+        sequence: seq,
+        temperatures: temps,
+        conditions,
+        params,
+        options: {}
+      }) || {};
 
       state.sim = {
         temps: sim.temperatures || temps,

@@ -6,17 +6,41 @@
   const melt = {};
 
   melt.meta = {
-    version: '0.3.0',
+    version: '0.7.2',
     algorithms: [
-      'Independent',
-      'HMMPosterior',
-      'HMMViterbi',
-      'Thermodynamic'
+      { key: 'independent', label: 'Independent' },
+      { key: 'posterior', label: 'HMM Posterior' },
+      { key: 'viterbi', label: 'HMM Viterbi' },
+      { key: 'thermo', label: 'Thermodynamic (Mixed Salt)' },
+      { key: 'hmm', label: 'Pedagogical HMM' },
+      { key: 'transferFast', label: 'Transfer Matrix (Fast)' },
+      { key: 'transfer', label: 'Transfer Matrix (Full)' },
+      { key: 'partitionFast', label: 'Partition Function (Fast)' },
+      { key: 'partition', label: 'Partition Function (Full)' },
+      { key: 'polymer', label: 'Polymer (Statistical Mechanics)' },
+      { key: 'sigmoid', label: 'Simple Sigmoid' }
     ],
     references: [
       'SantaLucia, J. (1998) PNAS 95:1460–1465',
       'Owczarzy, R. et al. (2008) Biochemistry 47:5336–5353'
     ]
+  };
+
+  melt.defaults = {
+    conditions: { Na: 0.05, Mg: 0.001 },
+    params: {
+      window: 15,
+      k: 0.8,
+      cooperativity: 0.5,
+      L: 20,
+      piM: 0.5,
+      eps: 1e-6,
+      conc: 5e-7,
+      dNTP: 0
+    },
+    options: {
+      fastSalt: false
+    }
   };
 
   // ==========================
@@ -823,6 +847,41 @@
     const result = { temperatures, fractionMelted };
     if (options?.returnPerBase) result.perBase = perBase;
     return result;
+  };
+
+  melt.registry = {
+    independent: melt.Simulate.simulateIndependent,
+    posterior: melt.Simulate.simulateHMMPosterior,
+    viterbi: melt.Simulate.simulateHMMViterbi,
+    thermo: melt.Simulate.simulateThermodynamic,
+    hmm: melt.Simulate.simulateHMM,
+    transferFast: melt.Simulate.simulateTransferMatrixFast,
+    transfer: melt.Simulate.simulateTransferMatrix,
+    partitionFast: melt.Simulate.simulatePartitionFunctionFast,
+    partition: melt.Simulate.simulatePartitionFunction,
+    polymer: melt.Simulate.simulatePolymer,
+    sigmoid: melt.Simulate.simulateSigmoid
+  };
+
+  melt.run = function ({
+    algorithm,
+    sequence,
+    temperatures,
+    conditions,
+    params,
+    options
+  }) {
+    const handler = melt.registry[algorithm] || melt.registry.independent;
+    const mergedConditions = { ...melt.defaults.conditions, ...(conditions || {}) };
+    const mergedParams = { ...melt.defaults.params, ...(params || {}) };
+    const mergedOptions = { ...melt.defaults.options, ...(options || {}) };
+    return handler({
+      sequence,
+      temperatures,
+      conditions: mergedConditions,
+      params: mergedParams,
+      options: mergedOptions
+    });
   };
 
   // Export globally

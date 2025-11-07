@@ -309,13 +309,13 @@ Implement v0.7.2 library self‑containment.
 ## v0.7.3 — Algorithm Set Consolidation and UI Migration
 
 ### Requirements
-Limit the public algorithms to four core models:
+Limit the algorithms to four core models:
 1. Simple Sigmoid (`id: 'sigmoid'`)
 2. HMM Posterior (`id: 'posterior'`)
 3. Polymer (`id: 'polymer'`)
 4. Thermodynamic (`id: 'thermo'`)
 
-Hide all others from menus and registry exports.
+Remove all other algorithms from the library entirely.
 
 **UI:**
 The tuner must populate its menu dynamically from `melt.meta.algorithms`.
@@ -324,7 +324,7 @@ The tuner must populate its menu dynamically from `melt.meta.algorithms`.
 ```md
 **Instruction for Codex (read first):**
 Implement v0.7.3 algorithm consolidation and UI migration.
-- Modify `meltingLib.js` to export only the four algorithms.
+- Modify `meltingLib.js` to implement only the four algorithms.
 - In `melting_tuner.html`, generate dropdown from `melt.meta.algorithms`.
 - Use `melt.run({ id })` to invoke simulations.
 ```
