@@ -277,7 +277,7 @@
     const ionicStrength = Math.max(1e-6, Na + 4 * Mg + conc);
 
     const seqTm = seq.length >= 2 ? melt.Thermo.computeTm(seq, conc, Na) : NaN;
-    const fallbackTm = params?.Tm ?? 70.0;
+    const fallbackTm = 70.0;
     const adjustedTm = melt.Thermo.adjustTmForIons(
       isFinite(seqTm) ? seqTm : fallbackTm,
       Na,
@@ -285,7 +285,7 @@
     );
 
     // Higher ionic strength narrows the transition; baseK scales steepness.
-    const steepness = baseK / (1 + 5 * ionicStrength);
+    const steepness = Math.max(1e-3, baseK / (1 + 5 * ionicStrength));
     const fractionMelted = temperatures.map(T =>
       1 / (1 + Math.exp(-(T - adjustedTm) / steepness))
     );
@@ -304,8 +304,6 @@
     const piM = params?.piM ?? 0.5;
     const eps = params?.eps ?? 1e-6;
     const coop = params?.cooperativity ?? 1.0;   // 0 = independent; >1 = stronger cooperativity
-
-    console.log('Cooperativity:', coop);
 
     const tms = melt.Thermo.localTms(seq, conc, Na, win);
     const perBase = [];
@@ -574,8 +572,8 @@
   }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
     const N = seq.length;
-    const maxLoop = params?.maxLoopLength ?? 30;
-    const energyScale = params?.energyScale ?? 1.0;
+    const maxLoop = Math.max(3, Math.floor(params?.window ?? 30));
+    const energyScale = Math.max(0.1, params?.cooperativity ?? 1.0);
   
     const perBase = [];
     const fractionMelted = [];

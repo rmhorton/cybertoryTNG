@@ -172,6 +172,18 @@
   };
   let runTimer = null;
   const DEFAULT_TEMP_RANGE = { min: 40, max: 100, step: 0.1 };
+  const simulationMap = {
+    independent: melt.Simulate.simulateIndependent,
+    posterior: melt.Simulate.simulateHMMPosterior,
+    viterbi: melt.Simulate.simulateHMMViterbi,
+    thermo: melt.Simulate.simulateThermodynamic,
+    hmm: melt.Simulate.simulateHMM,
+    transferFast: melt.Simulate.simulateTransferMatrixFast,
+    transfer: melt.Simulate.simulateTransferMatrix,
+    partitionFast: melt.Simulate.simulatePartitionFunctionFast,
+    partition: melt.Simulate.simulatePartitionFunction,
+    sigmoid: melt.Simulate.simulateSigmoid
+  };
 
   const paramDefaults = {
     window: 15,
@@ -397,38 +409,39 @@
 
   // ---------- Simulation ----------
   function run(){
+    if (runTimer) {
+      clearTimeout(runTimer);
+      runTimer = null;
+    }
     try{
       errEl.style.display='none';
       if(!state.ref) throw new Error('No reference selected.');
 
       rebuildAxis();
       const temps = state.axisTemps.slice();
+      if (!temps.length) {
+        state.sim = { temps: [], fracs: [] };
+        draw();
+        return;
+      }
 
       // conditions: UI values are in M; library expects mM for Na/Mg and M for conc
-      const Na = safeNum(NaEl.value, 0.05);
-      const Mg = safeNum(MgEl.value, 0.001);
-      const conc = safeNum(concEl.value, 5e-7);
+      const Na = safeNum(NaEl.value, 0.05, 0.05);
+      const Mg = safeNum(MgEl.value, 0.001, 0.001);
+      const conc = safeNum(concEl.value, 5e-7, 5e-7);
       const conditions = { Na: Na*1000, Mg: Mg*1000, conc };
 
       const params = { ...paramState };
 
       const algo = algoEl.value;
       const seq = state.ref.sequence;
-      let sim;
-      switch(algo){
-        case 'posterior': sim = melt.Simulate.simulateHMMPosterior({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'viterbi': sim = melt.Simulate.simulateHMMViterbi({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'thermo': sim = melt.Simulate.simulateThermodynamic({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'hmm': sim = melt.Simulate.simulateHMM({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'transferFast': sim = melt.Simulate.simulateTransferMatrixFast({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'transfer': sim = melt.Simulate.simulateTransferMatrix({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'partitionFast': sim = melt.Simulate.simulatePartitionFunctionFast({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'partition': sim = melt.Simulate.simulatePartitionFunction({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        case 'sigmoid': sim = melt.Simulate.simulateSigmoid({sequence:seq, temperatures:temps, conditions, params, options:{}}); break;
-        default: sim = melt.Simulate.simulateIndependent({sequence:seq, temperatures:temps, conditions, params, options:{}});
-      }
+      const handler = simulationMap[algo] || simulationMap.independent;
+      const sim = handler({ sequence: seq, temperatures: temps, conditions, params, options: {} }) || {};
 
-      state.sim = { temps: sim.temperatures, fracs: sim.fractionMelted };
+      state.sim = {
+        temps: sim.temperatures || temps,
+        fracs: sim.fractionMelted || new Array(temps.length).fill(NaN)
+      };
 
       // compute metrics on the axis grid
       const refOnAxis = interpToGrid(state.ref.temps, state.ref.fracs, state.axisTemps);
@@ -485,7 +498,7 @@
   if(entries.length){
     initRef(entries[0].id);
     refSel.value = entries[0].id;
-    run();
+    scheduleRun(true);
   } else {
     document.getElementById('err').textContent = 'No valid reference entries found in data file.';
     document.getElementById('err').style.display = 'block';
