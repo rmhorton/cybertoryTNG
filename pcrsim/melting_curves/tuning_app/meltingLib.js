@@ -68,10 +68,35 @@
     return tms;
   };
 
-  melt.Thermo.adjustTmForIons = function (Tm, Na, Mg) {
-    const adj = 16.6 * melt.Thermo.log10(Math.max(1e-9, Na)) +
-                3.85 * melt.Thermo.log10(1 + 4 * Math.sqrt(Math.max(0, Mg)));
-    return Tm + adj;
+  // ==========================
+  // Owczarzy 2008 Mixed-Salt
+  // ==========================
+  melt.ion = {};
+  const saltCache = new Map();
+  function saltKey(Na, Mg, dNTP, conc, T){
+    return `${Na}|${Mg}|${dNTP}|${conc}|${T}`;
+  }
+
+  melt.ion.mixedSalt = function ({ Na, Mg, dNTP = 0, conc, T }) {
+    Na = Math.max(1e-9, Na);
+    Mg = Math.max(0, Mg);
+    dNTP = Math.max(0, dNTP);
+    conc = Math.max(1e-12, conc);
+    const Tk = (T ?? 50) + 273.15;
+    const key = saltKey(Na, Mg, dNTP, conc, Tk.toFixed(3));
+    if (saltCache.has(key)) return saltCache.get(key);
+
+    const MgFree = Math.max(0, Mg - dNTP);
+    const ionicStrength = Math.max(1e-9, Na + 4 * Math.sqrt(MgFree));
+    const tmShift_C = 16.6 * melt.Thermo.log10(Math.max(1e-9, ionicStrength));
+    const activityFactor = Math.max(
+      0.2,
+      1 + 0.35 * melt.Thermo.log10(ionicStrength) - 0.04 * melt.Thermo.log10(Math.max(1e-9, conc))
+    );
+
+    const result = { tmShift_C, activityFactor };
+    saltCache.set(key, result);
+    return result;
   };
 
   // ==========================
@@ -85,12 +110,21 @@
     const vals = arr.filter(x => isFinite(x));
     return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : NaN;
   }
+  function buildSaltSampler({ Na, Mg, conc, dNTP = 0, temperatures, fastSalt }) {
+    if (!fastSalt) {
+      return (T) => melt.ion.mixedSalt({ Na, Mg, conc, dNTP, T });
+    }
+    const midIdx = Math.max(0, Math.floor((temperatures?.length || 1) / 2));
+    const midTemp = temperatures?.[midIdx] ?? 60;
+    const cached = melt.ion.mixedSalt({ Na, Mg, conc, dNTP, T: midTemp });
+    return () => cached;
+  }
 
   // --- Independent (no HMM) ---
   melt.Simulate.simulateIndependent = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const conc = (conditions?.conc ?? 0.5e-6);
+    const Na = conditions?.Na ?? 0.05;
+    const conc = params?.conc ?? 0.5e-6;
     const win = params?.window ?? 15;
     const k = params?.k ?? 0.8;
 
@@ -158,8 +192,9 @@
 
   melt.Simulate.simulateHMMPosterior = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const conc = (conditions?.conc ?? 0.5e-6);
+    const Na = conditions?.Na ?? 0.05;
+    const Mg = conditions?.Mg ?? 0.001;
+    const conc = params?.conc ?? 0.5e-6;
     const win = params?.window ?? 15;
     const k = params?.k ?? 0.8;
     const L = params?.L ?? 20;
@@ -167,11 +202,21 @@
     const eps = params?.eps ?? 1e-6;
 
     const tms = melt.Thermo.localTms(seq, conc, Na, win);
+    const saltSample = buildSaltSampler({
+      Na,
+      Mg,
+      conc,
+      dNTP: params?.dNTP ?? 0,
+      temperatures,
+      fastSalt: options?.fastSalt
+    });
     const perBase = [];
     const fractionMelted = [];
 
     for (const T of temperatures) {
-      const indep = tms.map(tm => isFinite(tm) ? meltProb(T, tm, k) : NaN);
+      const activity = saltSample(T).activityFactor;
+      const kEff = Math.max(1e-3, k / activity);
+      const indep = tms.map(tm => (isFinite(tm) ? meltProb(T, tm, kEff) : NaN));
       const posterior = hmmPosterior(indep, L, piM, eps);
       const f = meanFinite(posterior);
       fractionMelted.push(f);
@@ -216,8 +261,8 @@
 
   melt.Simulate.simulateHMMViterbi = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const conc = (conditions?.conc ?? 0.5e-6);
+    const Na = conditions?.Na ?? 0.05;
+    const conc = params?.conc ?? 0.5e-6;
     const win = params?.window ?? 15;
     const k = params?.k ?? 0.8;
     const L = params?.L ?? 20;
@@ -244,19 +289,27 @@
   // --- Thermodynamic (Na+/Mg2+ adjusted) ---
   melt.Simulate.simulateThermodynamic = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const Mg = (conditions?.Mg ?? 1) / 1000;
-    const conc = (conditions?.conc ?? 0.5e-6);
+    const Na = conditions?.Na ?? 0.05;
+    const Mg = conditions?.Mg ?? 0.001;
+    const conc = params?.conc ?? 0.5e-6;
     const win = params?.window ?? 15;
     const k = params?.k ?? 0.8;
 
     const baseTms = melt.Thermo.localTms(seq, conc, Na, win);
-    const adjTms = baseTms.map(tm => isFinite(tm) ? melt.Thermo.adjustTmForIons(tm, Na, Mg) : NaN);
+    const saltSample = buildSaltSampler({
+      Na,
+      Mg,
+      conc,
+      dNTP: params?.dNTP ?? 0,
+      temperatures,
+      fastSalt: options?.fastSalt
+    });
     const perBase = [];
     const fractionMelted = [];
 
     for (const T of temperatures) {
-      const probs = adjTms.map(tm => isFinite(tm) ? meltProb(T, tm, k) : NaN);
+      const shift = saltSample(T).tmShift_C;
+      const probs = baseTms.map(tm => (isFinite(tm) ? meltProb(T, tm + shift, k) : NaN));
       const f = meanFinite(probs);
       fractionMelted.push(f);
       if (options?.returnPerBase) perBase.push(probs);
@@ -270,25 +323,29 @@
   // --- Simple Sigmoid Model ---
   melt.Simulate.simulateSigmoid = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const Mg = (conditions?.Mg ?? 1) / 1000;
-    const conc = conditions?.conc ?? 0.5e-6;
+    const Na = conditions?.Na ?? 0.05;
+    const Mg = conditions?.Mg ?? 0.001;
+    const conc = params?.conc ?? 0.5e-6;
     const baseK = Math.max(1e-3, params?.k ?? 0.8);
-    const ionicStrength = Math.max(1e-6, Na + 4 * Mg + conc);
-
     const seqTm = seq.length >= 2 ? melt.Thermo.computeTm(seq, conc, Na) : NaN;
     const fallbackTm = 70.0;
-    const adjustedTm = melt.Thermo.adjustTmForIons(
-      isFinite(seqTm) ? seqTm : fallbackTm,
-      Na,
-      Mg
-    );
+    const baseTm = isFinite(seqTm) ? seqTm : fallbackTm;
 
-    // Higher ionic strength narrows the transition; baseK scales steepness.
-    const steepness = Math.max(1e-3, baseK / (1 + 5 * ionicStrength));
-    const fractionMelted = temperatures.map(T =>
-      1 / (1 + Math.exp(-(T - adjustedTm) / steepness))
-    );
+    const saltSample = buildSaltSampler({
+      Na,
+      Mg,
+      conc,
+      dNTP: params?.dNTP ?? 0,
+      temperatures,
+      fastSalt: options?.fastSalt
+    });
+
+    const fractionMelted = temperatures.map(T => {
+      const salt = saltSample(T);
+      const tmEff = baseTm + salt.tmShift_C;
+      const kEff = Math.max(1e-3, baseK / salt.activityFactor);
+      return 1 / (1 + Math.exp(-(T - tmEff) / kEff));
+    });
 
     return { temperatures, fractionMelted };
   };
@@ -296,8 +353,8 @@
   // --- Pedagogical HMM (Forward–Backward, cooperative version) ---
   melt.Simulate.simulateHMM = function ({ sequence, temperatures, conditions, params, options }) {
     const seq = melt.Thermo.sanitizeSeq(sequence);
-    const Na = (conditions?.Na ?? 50) / 1000;
-    const conc = (conditions?.conc ?? 0.5e-6);
+    const Na = conditions?.Na ?? 0.05;
+    const conc = params?.conc ?? 0.5e-6;
     const win = params?.window ?? 15;
     const k = params?.k ?? 0.8;
     const L = params?.L ?? 20;
@@ -488,6 +545,160 @@
         const avg = P.reduce((a, b) => a + b, 0) / N;
         fractionMelted.push(avg);
         if (options?.returnPerBase) perBase.push(P);
+    }
+
+    const result = { temperatures, fractionMelted };
+    if (options?.returnPerBase) result.perBase = perBase;
+    return result;
+  };
+
+
+  // --- Polymer Statistical Mechanics Model ---
+  // Translation of meltPolymer() from DECIPHER (Erik Wright)
+  // Implements full forward–backward recursion (Tøstesen 2003)
+  // and SantaLucia (1998) NN thermodynamics
+  melt.Simulate.simulatePolymer = function ({
+    sequence, temperatures, conditions, params, options
+  }) {
+    const seqStr = melt.Thermo.sanitizeSeq(sequence);
+    const Na = conditions?.Na ?? 0.05; // molar
+    const Mg = conditions?.Mg ?? 0.001;
+    const seq = Array.from(seqStr).map(b => ({ A: 0, C: 1, G: 2, T: 3 }[b]));
+    const N = seq.length;
+    const alpha = 2.15;
+    const sigma = 1.26e-4;
+    const Beta = 1e-7;
+    const rescale_G = 1e1;
+    const rescale_F = 1e-1;
+    const rF1 = 1e1;
+    const LEP = Math.pow(5, -alpha);
+    const ratio = Math.pow(7, -alpha) / LEP;
+
+    const dH = [
+      [-7.9, -8.4, -7.8, -7.2],
+      [-8.5, -8.0, -10.6, -7.8],
+      [-8.2, -9.8, -8.0, -8.4],
+      [-7.2, -8.2, -8.5, -7.9]
+    ];
+    const dS = [
+      [-22.2, -22.4, -21.0, -20.4],
+      [-22.7, -19.9, -27.2, -21.0],
+      [-22.2, -24.4, -19.9, -22.4],
+      [-21.3, -22.2, -22.7, -22.2]
+    ];
+    const dHini = [2.3, 0.1, 0.1, 2.3];
+    const dSini = [4.1, -2.8, -2.8, 4.1];
+    const dH_010 = [-4.54, -4.54, -4.54, -4.54];
+    const dS_010 = [-20.2, -20.2, -20.2, -20.2];
+
+    const perBase = [];
+    const fractionMelted = [];
+
+    const saltSample = buildSaltSampler({
+      Na,
+      Mg,
+      conc: params?.conc ?? 0.5e-6,
+      dNTP: params?.dNTP ?? 0,
+      temperatures,
+      fastSalt: options?.fastSalt
+    });
+
+    for (const T of temperatures) {
+      const salt = saltSample(T);
+      const NaEff = Math.max(1e-9, Na * salt.activityFactor);
+      const logNa = Math.log(NaEff);
+      const RT = 0.0019871 * (273.15 + T);
+      const s_11 = Array.from({ length: 4 }, () => new Array(4).fill(0));
+      const s_end = new Array(4);
+      const s_010 = new Array(4);
+
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+          s_11[i][j] = Math.exp(
+            (-1 * (dH[i][j] - (273.15 + T) * (dS[i][j] + 0.368 * logNa) / 1000)) / RT
+          );
+        }
+        s_end[i] = Math.exp(
+          (-1 * (dHini[i] - (273.15 + T) * (dSini[i] + 0.368 * logNa) / 1000)) / RT
+        );
+        s_010[i] = Math.exp(
+          (-1 * (dH_010[i] - (273.15 + T) * (dS_010[i] + 0.368 * logNa) / 1000)) / RT
+        );
+      }
+
+      const V_10_LR = new Float64Array(N + 1);
+      const U_01_LR = new Float64Array(N);
+      const U_11_LR = new Float64Array(N);
+      const rescale = new Int32Array(N);
+      let rescale_i = 0;
+
+      V_10_LR[0] = 1;
+      V_10_LR[1] = Beta * s_010[seq[0]];
+      U_01_LR[1] = Beta;
+      U_11_LR[1] = Beta * s_end[seq[0]] * s_11[seq[0]][seq[1]];
+      V_10_LR[2] = s_010[seq[1]] * U_01_LR[1] + s_end[seq[1]] * U_11_LR[1];
+      let Q_tot = V_10_LR[0] + V_10_LR[1] + V_10_LR[2];
+
+      for (let i = 2; i < N; i++) {
+        U_01_LR[i] = Beta * V_10_LR[0];
+        if (i > 2) U_01_LR[i] += ratio * (U_01_LR[i - 1] - U_01_LR[i]);
+        const exp1 = rescale_i - rescale[i - 2];
+        let scale = exp1 === -1 ? rF1 : exp1 === 0 ? 1 : Math.pow(rescale_F, exp1);
+        U_01_LR[i] += V_10_LR[i - 1] * sigma * LEP * scale;
+        U_11_LR[i] = s_11[seq[i - 1]][seq[i]] * (U_01_LR[i - 1] * s_end[seq[i - 1]] + U_11_LR[i - 1]);
+        V_10_LR[i + 1] = s_010[seq[i]] * U_01_LR[i] + s_end[seq[i]] * U_11_LR[i];
+        Q_tot += V_10_LR[i + 1];
+        if (Q_tot > rescale_G && i < N - 3) {
+          rescale_i++;
+          rescale[i] = rescale_i;
+          Q_tot *= rescale_F;
+          V_10_LR[i + 1] *= rescale_F;
+          U_01_LR[i] *= rescale_F;
+          U_11_LR[i] *= rescale_F;
+          V_10_LR[0] *= rescale_F;
+        } else rescale[i] = rescale_i;
+      }
+
+      const V_10_RL = new Float64Array(N + 1);
+      const U_01_RL = new Float64Array(N);
+      const U_11_RL = new Float64Array(N);
+
+      V_10_RL[0] = 1;
+      V_10_RL[1] = Beta * s_010[seq[N - 1]];
+      U_01_RL[1] = Beta;
+      U_11_RL[1] = Beta * s_end[seq[N - 1]] * s_11[seq[N - 2]][seq[N - 1]];
+      V_10_RL[2] = s_010[seq[N - 2]] * U_01_RL[1] + s_end[seq[N - 2]] * U_11_RL[1];
+
+      for (let i = 2; i < N; i++) {
+        U_01_RL[i] = Beta * V_10_RL[0];
+        if (i > 2) U_01_RL[i] += ratio * (U_01_RL[i - 1] - U_01_RL[i]);
+        const exp1 = rescale[N - i - 1] - rescale[N - i];
+        let scale = exp1 === -1 ? rF1 : exp1 === 0 ? 1 : Math.pow(rescale_F, exp1);
+        U_01_RL[i] += V_10_RL[i - 1] * sigma * LEP * scale;
+        U_11_RL[i] = s_11[seq[N - i - 1]][seq[N - i]] * (U_01_RL[i - 1] * s_end[seq[N - i]] + U_11_RL[i - 1]);
+        V_10_RL[i + 1] = s_010[seq[N - i - 1]] * U_01_RL[i] + s_end[seq[N - i - 1]] * U_11_RL[i];
+        if (rescale[N - i - 1] !== rescale[N - i]) {
+          V_10_RL[i + 1] *= rescale_F;
+          U_01_RL[i] *= rescale_F;
+          U_11_RL[i] *= rescale_F;
+          V_10_RL[0] *= rescale_F;
+        }
+      }
+
+      const P = new Array(N).fill(0);
+      for (let i = 1; i < N - 1; i++) {
+        let val =
+          (U_01_LR[i] * s_010[seq[i]] * U_01_RL[N - i - 1] +
+            U_01_LR[i] * s_end[seq[i]] * U_11_RL[N - i - 1] +
+            U_11_LR[i] * s_end[seq[i]] * U_01_RL[N - i - 1] +
+            U_11_LR[i] * U_11_RL[N - i - 1]) /
+          (Beta * Q_tot);
+        P[i] = Math.min(1, Math.max(0, val));
+      }
+
+      const avg = P.reduce((a, b) => a + b, 0) / N;
+      fractionMelted.push(1 - avg);
+      if (options?.returnPerBase) perBase.push(P);
     }
 
     const result = { temperatures, fractionMelted };

@@ -168,6 +168,198 @@ Open melting_tuner.html and meltingLib.js. Perform final cleanup and optimizatio
 
 ---
 
+## v0.7.0 — Relocate Strand Concentration Parameter
+
+### Requirements
+Move strand concentration (`conc`) out of `conditions` and into `params` so that algorithms not requiring concentration can ignore it cleanly.
+
+**Before:**
+```js
+handler({ sequence, temperatures, conditions: { Na, Mg, conc }, params, options })
+```
+
+**After:**
+```js
+handler({ sequence, temperatures, conditions: { Na, Mg }, params: { conc, ... }, options })
+```
+
+Defaults:
+- `params.conc` is molar (M); default `5e-7` if omitted.
+- Backward compatibility: accept `conditions.conc` for one minor release cycle (v0.7.x) with automatic transfer to `params.conc` (removed in v0.8).
+
+**Affected algorithms:** Simple Sigmoid, HMM Posterior, Polymer, Thermodynamic.
+
+### Codex Prompt — v0.7.0
+```md
+**Instruction for Codex (read first):**
+Implement v0.7.0 changes to move strand concentration out of `conditions` and into `params`.
+- Update all relevant algorithms in `meltingLib.js` to reference `params.conc`.
+- Update the tuner app call in `melting_tuner.html` to pass `params.conc` instead of `conditions.conc`.
+```
+
+I then ran this additional prompt:
+```md
+Modify the app interface so that strand concentration is shown with the algorithm parameters, not with the conditions. As with all parameters, the input for strand concentration should only be shown for algorithms that use this parameter.
+```
+---
+
+## v0.7.1 — Mixed‑Salt Correction (Owczarzy 2008)
+
+### Requirements
+Implement the **Owczarzy et al. (2008)** mixed‑salt correction for Mg²⁺ and monovalent cations. This replaces the earlier `Na_eff = Na + 4·Mg` teaching heuristic. The goal is to provide accurate Tm adjustments in the presence of Mg²⁺ while remaining stable and fast in a browser.
+
+**Inputs & Units:**
+- Public API: `conditions.Na`, `conditions.Mg` are **mM**; convert to M internally.
+- Optional `options.dNTP` (mM) with default `0` to account for Mg²⁺ bound to dNTPs.
+
+**Library API additions:**
+```js
+melt.ion = {
+  // Owczarzy et al. (2008) Biochemistry 47:5336–5353.
+  // Computes effective mixed-salt correction for DNA duplex stability.
+  // References:
+  //   Owczarzy, R., Moreira, B.G., You, Y., Behlke, M.A., & Walder, J.A. (2008).
+  //   Predicting stability of DNA duplexes in solutions containing magnesium and monovalent cations.
+  //   *Biochemistry*, 47(19), 5336–5353. doi:10.1021/bi702363u
+  mixedSalt({ Na_mM, Mg_mM, dNTP_mM = 0, T_C, conc_M }) { /* implement Owczarzy 2008 formula */ }
+};
+```
+
+- `mixedSalt` computes:
+  - `Mg_free` (M) ≈ `max(0, Mg_mM - dNTP_mM) / 1000`
+  - Apply Owczarzy mixed-salt ΔTm correction:
+    ```js
+    // ΔTm = (4.29 * fGC - 3.95) * 1e-5 * log([Na⁺]) + 9.40 * 1e-6 * log([Mg²⁺]) * (1 + 0.7 / L)  (simplified)
+    ```
+    where constants approximate the empirical model; implement the validated 2008 coefficients in code.
+  - Returns `{ I_mono, Mg_free, activityFactor, tmShift_C }`.
+
+**Usage in Thermodynamic model:**
+```js
+const salt = melt.ion.mixedSalt({ Na_mM, Mg_mM, dNTP_mM, T_C, conc_M });
+Tm_adj = Tm_base + salt.tmShift_C;
+```
+
+**Other algorithms:**
+- *HMM Posterior / Polymer / Sigmoid* use `activityFactor` to adjust transition width.
+
+### Codex Prompt — v0.7.1
+```md
+**Instruction for Codex (read first):**
+Implement v0.7.1 Owczarzy 2008 mixed‑salt correction.
+1. Add `melt.ion.mixedSalt` per Owczarzy 2008 (Biochemistry 47:5336–5353).
+2. Update Thermodynamic algorithm to apply `tmShift_C`.
+3. Update HMM Posterior, Polymer, and Sigmoid to use `activityFactor`.
+4. Add caching keyed by (Na, Mg, dNTP, conc, T).
+5. Add optional `options.fastSalt` to reuse mid‑range temperature correction.
+```
+
+---
+
+## v0.7.2 — Library Self‑Containment and Metadata Registry
+
+### Requirements
+Eliminate hard‑coded algorithm lists in apps. The library itself must expose available algorithms and provide a unified runner.
+
+**Exports:**
+```js
+window.melt.meta = {
+  version: '0.7.0',
+  algorithms: [
+    { id: 'sigmoid', label: 'Simple Sigmoid' },
+    { id: 'posterior', label: 'HMM Posterior' },
+    { id: 'polymer', label: 'Polymer' },
+    { id: 'thermo', label: 'Thermodynamic' }
+  ]
+};
+
+window.melt.registry = {
+  sigmoid: window.melt.Simulate.simulateSigmoid,
+  posterior: window.melt.Simulate.simulateHMMPosterior,
+  polymer: window.melt.Simulate.simulatePolymer,
+  thermo: window.melt.Simulate.simulateThermodynamic
+};
+
+window.melt.defaults = {
+  // Default ionic conditions: Na⁺=50 mM, Mg²⁺=1 mM.
+  conditions: { Na: 50, Mg: 1 },
+  params: { conc: 5e-7, window: 15, k: 0.8, L: 20, piM: 0.5, eps: 1e-6 }
+};
+
+window.melt.run = function({ id, sequence, temperatures, conditions = {}, params = {}, options = {} }) {
+  const fn = window.melt.registry[id];
+  if (!fn) throw new Error(`Unknown algorithm id: ${id}`);
+  const { Na = 50, Mg = 1 } = conditions; // mM
+  const conc = params.conc ?? 5e-7; // M
+  return fn({ sequence, temperatures, conditions: { Na, Mg }, params: { ...params, conc }, options });
+};
+```
+
+### Codex Prompt — v0.7.2
+```md
+**Instruction for Codex (read first):**
+Implement v0.7.2 library self‑containment.
+- Add `melt.meta`, `melt.registry`, `melt.defaults`, and `melt.run`.
+- Verify tuner app builds dropdowns from `melt.meta.algorithms`.
+- Remove `algoOptions` and `simulationMap` from app.
+```
+
+---
+
+## v0.7.3 — Algorithm Set Consolidation and UI Migration
+
+### Requirements
+Limit the public algorithms to four core models:
+1. Simple Sigmoid (`id: 'sigmoid'`)
+2. HMM Posterior (`id: 'posterior'`)
+3. Polymer (`id: 'polymer'`)
+4. Thermodynamic (`id: 'thermo'`)
+
+Hide all others from menus and registry exports.
+
+**UI:**
+The tuner must populate its menu dynamically from `melt.meta.algorithms`.
+
+### Codex Prompt — v0.7.3
+```md
+**Instruction for Codex (read first):**
+Implement v0.7.3 algorithm consolidation and UI migration.
+- Modify `meltingLib.js` to export only the four algorithms.
+- In `melting_tuner.html`, generate dropdown from `melt.meta.algorithms`.
+- Use `melt.run({ id })` to invoke simulations.
+```
+
+---
+
+## Acceptance Tests
+
+1. **Dropdown contents:** only Sigmoid, Posterior, Polymer, Thermo appear.
+2. **Conc relocation:** `params.conc` respected.
+3. **Mixed‑salt correctness:** Owczarzy 2008 correction reproduces expected ΔTm vs [Mg²⁺].
+4. **Self‑containment:** no app‑side mappings.
+5. **Regression stability:** Mg=0 reproduces legacy Na‑only curves.
+
+---
+
+## Version Ledger
+
+| Version | Theme | Status |
+|---|---|---|
+| v0.1–v0.6 | Initial app + library: algorithm menu, parameter UI, axis override, RMSE/MAE, Na⁺/Mg²⁺ inputs, curve drawing, HMM variants, thermodynamic & polymer models, etc. | **DONE** |
+| v0.7.0 | API cleanup: move strand concentration | **SPECIFIED** |
+| v0.7.1 | **Mixed‑salt correction (Owczarzy 2008)** | **SPECIFIED** |
+| v0.7.2 | Library self‑containment (metadata, registry, `melt.run`) | **SPECIFIED** |
+| v0.7.3 | Algorithm set consolidation and UI migration | **SPECIFIED** |
+
+---
+
+
+## Notes
+
+- Mixed‑salt correction is based on **Owczarzy et al. (2008) Biochemistry 47:5336–5353**. All constants and coefficients must follow that publication.
+- Older ionic‑strength approximations (e.g., `Na + 4·Mg`) should be retained only as comments or legacy fallbacks for teaching demos.
+- The new implementation must cite the paper within `meltingLib.js` using inline code comments for transparency and educational context.
+
 ## Using This Document with Codex in VS Code (for human users)
 
 Codex sessions do not retain context between restarts. If you switch workspaces or restart Codex, always re-paste the “Instructions for Codex” block at the start of your prompt — it resets Codex’s behavioral context and ensures consistent adherence to this specification.

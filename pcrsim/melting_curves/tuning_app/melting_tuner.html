@@ -49,7 +49,7 @@
         <label>Reference dataset</label>
         <select id="refSelect"></select>
         <div class="note" id="seqMeta">—</div>
-        <div class="row3">
+        <div class="row2">
           <div>
             <label>[Na⁺] (M)</label>
             <input id="Na" type="number" value="0.05" step="0.001" />
@@ -57,10 +57,6 @@
           <div>
             <label>[Mg²⁺] (M)</label>
             <input id="Mg" type="number" value="0.001" step="0.0001" />
-          </div>
-          <div>
-            <label>Strand conc (M)</label>
-            <input id="conc" type="number" value="0.0000005" step="1e-7" />
           </div>
         </div>
         <div class="hr"></div>
@@ -129,7 +125,6 @@
   const seqMeta = document.getElementById('seqMeta');
   const NaEl = document.getElementById('Na');
   const MgEl = document.getElementById('Mg');
-  const concEl = document.getElementById('conc');
   const algoEl = document.getElementById('algo');
   const paramControlsEl = document.getElementById('paramControls');
   const tminEl = document.getElementById('tmin');
@@ -158,6 +153,7 @@
     ['transfer','Transfer Matrix (Full)'],
     ['partitionFast','Partition Function (Fast)'],
     ['partition','Partition Function (Full)'],
+    ['polymer','Polymer (Statistical Mechanics)'],
     ['sigmoid','Simple Sigmoid']
   ];
   algoOptions.forEach(([v,lab],i)=>{
@@ -182,6 +178,7 @@
     transfer: melt.Simulate.simulateTransferMatrix,
     partitionFast: melt.Simulate.simulatePartitionFunctionFast,
     partition: melt.Simulate.simulatePartitionFunction,
+    polymer: melt.Simulate.simulatePolymer,
     sigmoid: melt.Simulate.simulateSigmoid
   };
 
@@ -191,7 +188,8 @@
     cooperativity: 0.5,
     L: 20,
     piM: 0.5,
-    eps: 1e-6
+    eps: 1e-6,
+    conc: 5e-7
   };
   const paramDefs = {
     window: { label: 'Window', min: 5, max: 101, step: 2, default: 15 },
@@ -199,19 +197,20 @@
     cooperativity: { label: 'Cooperativity', min: 0, max: 5, step: 0.1, default: 0.5 },
     L: { label: 'Domain L', min: 2, max: 200, step: 1, default: 20 },
     piM: { label: 'π<sub>M</sub>', min: 0, max: 1, step: 0.01, default: 0.5 },
-    eps: { label: 'ε', min: 1e-7, max: 1e-1, step: 1e-6, default: 1e-6 }
+    eps: { label: 'ε', min: 1e-7, max: 1e-1, step: 1e-6, default: 1e-6 },
+    conc: { label: 'Strand conc (M)', min: 1e-9, max: 1e-3, step: 1e-7, default: 5e-7 }
   };
   const paramSchema = {
-    independent: ['window', 'k'],
-    posterior: ['window', 'k', 'L', 'piM', 'eps'],
-    viterbi: ['window', 'k', 'L', 'piM', 'eps'],
-    thermo: ['window', 'k'],
-    hmm: ['window', 'k', 'L', 'piM', 'eps', 'cooperativity'],
+    independent: ['window', 'k', 'conc'],
+    posterior: ['window', 'k', 'L', 'piM', 'eps', 'conc'],
+    viterbi: ['window', 'k', 'L', 'piM', 'eps', 'conc'],
+    thermo: ['window', 'k', 'conc'],
+    hmm: ['window', 'k', 'L', 'piM', 'eps', 'cooperativity', 'conc'],
     transferFast: ['window', 'cooperativity'],
     transfer: ['cooperativity'],
     partitionFast: ['window', 'cooperativity'],
     partition: ['cooperativity'],
-    sigmoid: ['k']
+    sigmoid: ['k', 'conc']
   };
   const paramState = { ...paramDefaults };
 
@@ -425,11 +424,10 @@
         return;
       }
 
-      // conditions: UI values are in M; library expects mM for Na/Mg and M for conc
+      // conditions: UI values are molar; pass through directly
       const Na = safeNum(NaEl.value, 0.05, 0.05);
       const Mg = safeNum(MgEl.value, 0.001, 0.001);
-      const conc = safeNum(concEl.value, 5e-7, 5e-7);
-      const conditions = { Na: Na*1000, Mg: Mg*1000, conc };
+      const conditions = { Na, Mg };
 
       const params = { ...paramState };
 
@@ -460,7 +458,7 @@
   // ---------- Interactions ----------
 
   document.getElementById('reset').addEventListener('click', ()=>{
-    NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005;
+    NaEl.value=0.05; MgEl.value=0.001;
     resetParamsToDefaults();
     tminEl.value = DEFAULT_TEMP_RANGE.min.toFixed(1);
     tmaxEl.value = DEFAULT_TEMP_RANGE.max.toFixed(1);
@@ -475,7 +473,7 @@
     el.addEventListener('change', handler);
   });
 
-  const conditionInputs = [NaEl, MgEl, concEl];
+  const conditionInputs = [NaEl, MgEl];
   conditionInputs.forEach(el=>{
     const handler = ()=> scheduleRun();
     el.addEventListener('input', handler);
