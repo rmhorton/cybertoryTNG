@@ -169,7 +169,6 @@
     ref: null,          // {id, sequence, temps, fracs}
     sim: null,          // {temps, fracs}
     axisTemps: [],      // axis grid based on override
-    cursor: null        // scrub cursor temperature
   };
   let runTimer = null;
   const DEFAULT_TEMP_RANGE = { min: 40, max: 100, step: 0.1 };
@@ -394,11 +393,6 @@
       ctx.stroke();
     }
 
-    // Scrub cursor
-    if(Number.isFinite(state.cursor)){
-      const x = xs(state.cursor); ctx.setLineDash([4,3]);
-      ctx.strokeStyle='rgba(239,68,68,.9)'; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); ctx.setLineDash([]);
-    }
   }
 
   // ---------- Simulation ----------
@@ -451,21 +445,6 @@
   }
 
   // ---------- Interactions ----------
-  function setCursorFromEvent(e){
-    const rect = plot.getBoundingClientRect();
-    const left=48, right=plot.width-16;
-    const x = e.clientX - rect.left; 
-    const temps = state.axisTemps.length ? state.axisTemps : (state.ref?.temps||[]);
-    if(!temps.length) return;
-    const Tmin = temps[0], Tmax = temps[temps.length-1];
-    const t = Tmin + (Math.max(left, Math.min(right,x)) - left) / (right-left) * (Tmax-Tmin);
-    state.cursor = t; draw();
-  }
-
-  let dragging=false;
-  plot.addEventListener('mousedown', e=>{ dragging=true; setCursorFromEvent(e); });
-  window.addEventListener('mousemove', e=>{ if(dragging) setCursorFromEvent(e); });
-  window.addEventListener('mouseup', ()=> dragging=false);
 
   document.getElementById('reset').addEventListener('click', ()=>{
     NaEl.value=0.05; MgEl.value=0.001; concEl.value=0.0000005;
