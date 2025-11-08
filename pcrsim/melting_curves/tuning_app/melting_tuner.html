@@ -180,14 +180,8 @@
   };
   const paramSchema = {
     independent: ['window', 'k', 'conc'],
-    posterior: ['window', 'k', 'L', 'piM', 'eps', 'conc'],
-    viterbi: ['window', 'k', 'L', 'piM', 'eps', 'conc'],
     thermo: ['window', 'k', 'conc'],
-    hmm: ['window', 'k', 'L', 'piM', 'eps', 'cooperativity', 'conc'],
-    transferFast: ['window', 'cooperativity'],
-    transfer: ['cooperativity'],
-    partitionFast: ['window', 'cooperativity'],
-    partition: ['cooperativity'],
+    polymer: ['conc'],
     sigmoid: ['k', 'conc']
   };
   const paramState = { ...paramDefaults };
@@ -412,7 +406,7 @@
       const algo = algoEl.value || (algoList[0]?.key) || 'independent';
       const seq = state.ref.sequence;
       const sim = melt.run({
-        algorithm: algo,
+        id: algo,
         sequence: seq,
         temperatures: temps,
         conditions,
