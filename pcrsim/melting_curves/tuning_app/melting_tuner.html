@@ -176,7 +176,7 @@
     L: { label: 'Domain L', min: 2, max: 200, step: 1, default: 20 },
     piM: { label: 'π<sub>M</sub>', min: 0, max: 1, step: 0.01, default: 0.5 },
     eps: { label: 'ε', min: 1e-7, max: 1e-1, step: 1e-6, default: 1e-6 },
-    conc: { label: 'Strand conc (M)', min: 1e-9, max: 1e-3, step: 1e-7, default: 5e-7 }
+    conc: { label: 'Strand conc (M)', max: 1e-3, step: 1e-7, default: 5e-7 }
   };
   const paramSchema = {
     independent: ['window', 'k', 'conc'],

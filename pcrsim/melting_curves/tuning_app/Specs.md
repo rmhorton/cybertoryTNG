@@ -353,6 +353,78 @@ Implement v0.7.3 algorithm consolidation and UI migration.
 
 ---
 
+## Correcting Errors
+
+This prompt was used to correct the salt adjustment.
+
+```md
+**Instruction for Codex (read first):**
+Implement targeted corrections to `meltingLib.js` that fix the strand-concentration behavior in the Polymer algorithm.
+
+### Objectives
+1. **Remove strand concentration (`conc`) from the salt activityFactor.**
+   - In `melt.ion.mixedSalt`, delete the term that modifies `activityFactor` based on `conc`.
+   - The resulting expression should depend only on ionic strength (Na⁺ and Mg²⁺):
+     ```js
+     const activityFactor = Math.max(
+       0.2,
+       1 + 0.35 * melt.Thermo.log10(ionicStrength)
+     );
+     ```
+   - Keep `conc` in the argument list and in the cache key, but do not use it inside this formula.
+
+2. **Introduce concentration scaling into the Polymer model at the initiation stage.**
+   - In `melt.Simulate.simulatePolymer`, locate the existing constant:
+     ```js
+     const Beta = 1e-7;
+     ```
+   - Replace it with a term that scales with strand concentration:
+     ```js
+     const Ct = Math.max(1e-12, params?.conc ?? 0.5e-6); // molar
+     // Preserve the original numeric scale at 0.5 µM
+     const Beta = 1e-7 * (Ct / 0.5e-6);
+     ```
+   - Comment that this reflects the proper dependence of duplex initiation on strand pairing probability.
+
+3. **Verify correct directionality.**
+   - After modification, increasing `params.conc` should **increase** Tm and shift the melting curve to higher temperatures.
+   - Changes in Na⁺/Mg²⁺ should continue to shift the curve according to the mixed-salt correction.
+
+4. **Leave other algorithms untouched.**
+   - Do not alter `simulateThermodynamic`, `simulateSigmoid`, or any caching logic.
+
+### Test checklist
+- Run the Polymer simulation with `conc = 0.5e-6` and again with `conc = 5e-6`.  
+  The higher-concentration run should melt at a higher temperature.
+- Ensure thermodynamic and sigmoid curves are unchanged.
+- Keep reference citations and log10 helper as they are.
+
+### Summary of file edits
+| Section | Change |
+|----------|--------|
+| `melt.ion.mixedSalt` | remove `- 0.04 * log10(conc)` term |
+| `simulatePolymer` | scale `Beta` by `(conc / 0.5e-6)` |
+| Comments | explain rationale and reference SantaLucia (1998) and Owczarzy (2008) |
+
+```
+After saving, rebuild and compare Polymer curves against the DECIPHER *MeltDNA* reference; the new curves should retain correct salt behavior and show higher Tm for higher strand concentrations.
+
+
+v0.7.3.2: This prompt was used to switch to legacy behavior at very low Mg and strand concentrations:
+
+```md
+**Instruction for Codex (read first):**
+Update `simulatePolymer` to gracefully revert to legacy behavior when both Mg and strand concentration are extremely low.
+
+Implementation notes:
+- Define `useLegacy = (Mg < 1e-6 && Ct < 1e-9)`.
+- If true:
+  - Skip mixed-salt correction and keep `Beta = 1e-7`.
+  - Set `activityFactor = 1.0`.
+  - Proceed with the same recursion, ensuring identical results to the original Polymer method.
+- Otherwise, use the full Owczarzy mixed-salt correction and scaled Beta.
+- Document this threshold with a code comment explaining that it preserves backward compatibility with the DECIPHER MeltDNA reference.
+```
 
 ## Notes
 

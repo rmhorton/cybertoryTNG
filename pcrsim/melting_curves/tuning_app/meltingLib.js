@@ -105,10 +105,10 @@
 
     const MgFree = Math.max(0, Mg - dNTP);
     const ionicStrength = Math.max(1e-9, Na + 4 * Math.sqrt(MgFree));
-    const tmShift_C = 16.6 * melt.Thermo.log10(Math.max(1e-9, ionicStrength));
+    const tmShift_C = 16.6 * melt.Thermo.log10(ionicStrength);
     const activityFactor = Math.max(
       0.2,
-      1 + 0.35 * melt.Thermo.log10(ionicStrength) - 0.04 * melt.Thermo.log10(Math.max(1e-9, conc))
+      1 + 0.35 * melt.Thermo.log10(ionicStrength)
     );
 
     const result = { tmShift_C, activityFactor };
@@ -240,7 +240,10 @@
     const N = seq.length;
     const alpha = 2.15;
     const sigma = 1.26e-4;
-    const Beta = 1e-7;
+    const Ct = Math.max(1e-12, params?.conc ?? 0.5e-6); // molar duplex concentration
+    const useLegacy = (Mg < 1e-6 && Ct < 1e-9); // Preserve DECIPHER MeltDNA limits at ultra-dilute salt/strand settings
+    const baseBeta = 1e-7;
+    const Beta = useLegacy ? baseBeta : baseBeta * (Ct / 0.5e-6); // scale initiation to reflect strand pairing probability (SantaLucia 1998)
     const rescale_G = 1e1;
     const rescale_F = 1e-1;
     const rF1 = 1e1;
@@ -267,18 +270,18 @@
     const perBase = [];
     const fractionMelted = [];
 
-    const saltSample = buildSaltSampler({
+    const saltSample = useLegacy ? null : buildSaltSampler({
       Na,
       Mg,
-      conc: params?.conc ?? 0.5e-6,
+      conc: Ct,
       dNTP: params?.dNTP ?? 0,
       temperatures,
       fastSalt: options?.fastSalt
     });
 
     for (const T of temperatures) {
-      const salt = saltSample(T);
-      const NaEff = Math.max(1e-9, Na * salt.activityFactor);
+      const salt = useLegacy ? null : saltSample(T);
+      const NaEff = useLegacy ? Na : Math.max(1e-9, Na * salt.activityFactor);
       const logNa = Math.log(NaEff);
       const RT = 0.0019871 * (273.15 + T);
       const s_11 = Array.from({ length: 4 }, () => new Array(4).fill(0));
