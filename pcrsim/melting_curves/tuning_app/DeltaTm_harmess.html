@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ΔTm vs Mg and Ct — Polymer Harness</title>
+  <!-- Plotly v2 (explicit version to avoid deprecation) -->
+  <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+  <!-- Your simulation library (same folder) -->
+  <script src="./meltingLib.js"></script>
+  <style>
+    :root { --pad: 12px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: var(--pad); }
+    header { margin-bottom: var(--pad); }
+    fieldset { border: 1px solid #ddd; border-radius: 8px; padding: var(--pad); margin-bottom: var(--pad); }
+    label { display: inline-block; min-width: 180px; }
+    input[type="number"] { width: 120px; }
+    #plots { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    #plot3D { grid-column: 1 / -1; height: 600px; }
+    .plot { min-height: 380px; }
+    .row { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+    button { padding: 8px 14px; border: 1px solid #888; border-radius: 8px; background: #fafafa; cursor: pointer; }
+    button:hover { background: #f0f0f0; }
+    code { background: #f6f8fa; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>ΔTm vs Mg²⁺ and Strand Concentration (Polymer Model)</h2>
+    <p>
+      This harness sweeps Mg and Ct (strand concentration) and plots ΔTm relative to a low-salt, low-concentration baseline
+      using <code>melt.Simulate.simulatePolymer</code> from your library.
+    </p>
+  </header>
+
+  <fieldset>
+    <legend>Inputs</legend>
+    <div class="row">
+      <label for="seq">DNA sequence</label>
+      <input id="seq" type="text" value="ATGCGTATCGATCG" size="40" />
+    </div>
+    <div class="row">
+      <label>Temperature range (°C)</label>
+      <input id="tmin" type="number" value="20" step="1" /> –
+      <input id="tmax" type="number" value="90" step="1" />
+      <label style="margin-left:16px;">Points</label>
+      <input id="tpts" type="number" value="351" step="1" />
+      <label style="margin-left:16px;">
+        <input id="fastSalt" type="checkbox" /> fastSalt
+      </label>
+    </div>
+
+    <div class="row">
+      <label>Na (mM)</label>
+      <input id="na_mM" type="number" value="50" step="1" />
+      <label style="margin-left:16px;">dNTP (mM)</label>
+      <input id="dntp_mM" type="number" value="0" step="0.1" />
+    </div>
+
+    <div class="row">
+      <label>Mg sweep (mM): min – max</label>
+      <input id="mgMin_mM" type="number" value="0.0001" step="0.0001" /> –
+      <input id="mgMax_mM" type="number" value="2" step="0.1" />
+      <label style="margin-left:16px;">points</label>
+      <input id="mgPts" type="number" value="40" step="1" />
+      <label style="margin-left:16px;">Ct for Mg slice (µM)</label>
+      <input id="ctFixed_uM" type="number" value="0.5" step="0.1" />
+    </div>
+
+    <div class="row">
+      <label>Ct sweep (µM): min – max</label>
+      <input id="ctMin_uM" type="number" value="0.001" step="0.001" /> –
+      <input id="ctMax_uM" type="number" value="100" step="1" />
+      <label style="margin-left:16px;">points</label>
+      <input id="ctPts" type="number" value="40" step="1" />
+      <label style="margin-left:16px;">Mg for Ct slice (mM)</label>
+      <input id="mgFixed_mM" type="number" value="1" step="0.1" />
+    </div>
+
+    <div class="row">
+      <button id="run">Run</button>
+    </div>
+  </fieldset>
+
+  <section id="plots">
+    <div id="plotMg" class="plot"></div>
+    <div id="plotCt" class="plot"></div>
+    <div id="plot3D"></div>
+  </section>
+
+<script>
+(function() {
+  // -------- helpers --------
+  function linspace(a, b, n) {
+    if (n <= 1) return [a];
+    const step = (b - a) / (n - 1);
+    return Array.from({ length: n }, (_, i) => a + i * step);
+  }
+  function logspace(a, b, n) { // decades in base10
+    if (n <= 1) return [Math.pow(10, a)];
+    const step = (b - a) / (n - 1);
+    return Array.from({ length: n }, (_, i) => Math.pow(10, a + i * step));
+  }
+  function makeTemps(tmin, tmax, n) { return linspace(tmin, tmax, n); }
+
+  // Use fractionMelted returned by the library to compute Tm (p=0.5 crossing)
+  function findTm(result) {
+    const temps = result.temperatures || result.temps || result.x;
+    const y = result.fractionMelted || result.y || result.values;
+    if (!Array.isArray(temps) || !Array.isArray(y)) return NaN;
+    let i = y.findIndex(p => p >= 0.5);
+    if (i <= 0 || i >= temps.length) return NaN;
+    const y0 = y[i - 1], y1 = y[i];
+    if (!isFinite(y0) || !isFinite(y1) || y1 === y0) return NaN;
+    const frac = (0.5 - y0) / (y1 - y0);
+    return temps[i - 1] + frac * (temps[i] - temps[i - 1]);
+  }
+
+  function runOnce({ seq, temps, Na_mM, Mg_mM, Ct_M, dNTP_mM, fastSalt }) {
+    return melt.Simulate.simulatePolymer({
+      sequence: seq,
+      temperatures: temps,
+      conditions: { Na: Na_mM / 1000, Mg: Mg_mM / 1000 }, // library expects M
+      params: { conc: Ct_M, dNTP: dNTP_mM / 1000 },
+      options: { fastSalt }
+    });
+  }
+
+  async function run() {
+    const seq = document.getElementById('seq').value.trim();
+    const tmin = parseFloat(document.getElementById('tmin').value);
+    const tmax = parseFloat(document.getElementById('tmax').value);
+    const tpts = parseInt(document.getElementById('tpts').value, 10);
+    const fastSalt = document.getElementById('fastSalt').checked;
+
+    const Na_mM = parseFloat(document.getElementById('na_mM').value);
+    const dNTP_mM = parseFloat(document.getElementById('dntp_mM').value);
+
+    const mgMin_mM = parseFloat(document.getElementById('mgMin_mM').value);
+    const mgMax_mM = parseFloat(document.getElementById('mgMax_mM').value);
+    const mgPts = parseInt(document.getElementById('mgPts').value, 10);
+    const ctFixed_uM = parseFloat(document.getElementById('ctFixed_uM').value);
+
+    const ctMin_uM = parseFloat(document.getElementById('ctMin_uM').value);
+    const ctMax_uM = parseFloat(document.getElementById('ctMax_uM').value);
+    const ctPts = parseInt(document.getElementById('ctPts').value, 10);
+    const mgFixed_mM = parseFloat(document.getElementById('mgFixed_mM').value);
+
+    const temps = makeTemps(tmin, tmax, tpts);
+
+    // Baseline (legacy): Mg≈0, Ct≈0
+    const legacy = runOnce({ seq, temps, Na_mM, Mg_mM: 1e-6, Ct_M: 1e-12, dNTP_mM, fastSalt });
+    const Tm0 = findTm(legacy);
+
+    // ---- Mg slice (vary Mg, hold Ct fixed) ----
+    const mgVals_mM = logspace(Math.log10(mgMin_mM), Math.log10(mgMax_mM), mgPts);
+    const dTm_Mg = [];
+    for (const Mg_mM of mgVals_mM) {
+      const r = runOnce({ seq, temps, Na_mM, Mg_mM, Ct_M: ctFixed_uM / 1e6, dNTP_mM, fastSalt });
+      const tm = findTm(r);
+      dTm_Mg.push(isFinite(tm) && isFinite(Tm0) ? tm - Tm0 : NaN);
+    }
+
+    // ---- Ct slice (vary Ct, hold Mg fixed) ----
+    const ctVals_uM = logspace(Math.log10(ctMin_uM), Math.log10(ctMax_uM), ctPts);
+    const dTm_Ct = [];
+    for (const Ct_uM of ctVals_uM) {
+      const r = runOnce({ seq, temps, Na_mM, Mg_mM: mgFixed_mM, Ct_M: Ct_uM / 1e6, dNTP_mM, fastSalt });
+      const tm = findTm(r);
+      dTm_Ct.push(isFinite(tm) && isFinite(Tm0) ? tm - Tm0 : NaN);
+    }
+
+    // ---- 3D grid ----
+    const mgGrid_mM = logspace(Math.log10(mgMin_mM), Math.log10(mgMax_mM), Math.max(8, Math.ceil(mgPts/2)));
+    const ctGrid_uM = logspace(Math.log10(ctMin_uM), Math.log10(ctMax_uM), Math.max(8, Math.ceil(ctPts/2)));
+    const Z = [];
+    for (let j = 0; j < ctGrid_uM.length; j++) {
+      const row = [];
+      for (let i = 0; i < mgGrid_mM.length; i++) {
+        const r = runOnce({ seq, temps, Na_mM, Mg_mM: mgGrid_mM[i], Ct_M: ctGrid_uM[j] / 1e6, dNTP_mM, fastSalt });
+        const tm = findTm(r);
+        row.push(isFinite(tm) && isFinite(Tm0) ? tm - Tm0 : NaN);
+      }
+      Z.push(row);
+    }
+
+    // ---- Plot: ΔTm vs Mg ----
+    Plotly.newPlot('plotMg', [{
+      x: mgVals_mM,
+      y: dTm_Mg,
+      mode: 'lines+markers',
+      name: 'ΔTm vs Mg'
+    }], {
+      title: `ΔTm vs [Mg²⁺] (Ct = ${ctFixed_uM} µM)` ,
+      xaxis: { title: '[Mg²⁺] (mM)', type: 'log' },
+      yaxis: { title: 'ΔTm (°C)' },
+      margin: { t: 40 }
+    }, {responsive: true});
+
+    // ---- Plot: ΔTm vs Ct ----
+    Plotly.newPlot('plotCt', [{
+      x: ctVals_uM,
+      y: dTm_Ct,
+      mode: 'lines+markers',
+      name: 'ΔTm vs Ct'
+    }], {
+      title: `ΔTm vs Strand Conc. (Mg = ${mgFixed_mM} mM)` ,
+      xaxis: { title: 'Ct (µM)', type: 'log' },
+      yaxis: { title: 'ΔTm (°C)' },
+      margin: { t: 40 }
+    }, {responsive: true});
+
+    // ---- Plot: 3D surface ----
+    Plotly.newPlot('plot3D', [{
+      x: mgGrid_mM,
+      y: ctGrid_uM,
+      z: Z,
+      type: 'surface'
+    }], {
+      title: 'ΔTm Surface vs [Mg²⁺] and Ct',
+      scene: {
+        xaxis: { title: '[Mg²⁺] (mM)', type: 'log' },
+        yaxis: { title: 'Ct (µM)', type: 'log' },
+        zaxis: { title: 'ΔTm (°C)' }
+      },
+      margin: { t: 40 }
+    }, {responsive: true});
+  }
+
+  document.getElementById('run').addEventListener('click', run);
+  // auto-run once on load
+  window.addEventListener('load', run);
+})();
+</script>
+</body>
+</html>

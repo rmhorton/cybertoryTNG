@@ -426,6 +426,313 @@ Implementation notes:
 - Document this threshold with a code comment explaining that it preserves backward compatibility with the DECIPHER MeltDNA reference.
 ```
 
+v0.7.3.3: smooth blending between legacy and mixed-salt behavior.
+
+```md
+**Instruction for Codex (read first):**
+Modify `simulatePolymer` and related salt handling to make the legacy behavior continuous rather than thresholded.
+
+### Tasks
+1. **Remove hard threshold logic**  
+   Delete any `if (Mg < ...) return legacy` or equivalent block that switches entirely to the old behavior.
+
+2. **Introduce a blending factor**  
+   Add a smooth weight that gradually transitions between the legacy and mixed-salt behaviors:
+   ```js
+   const MgWeight = Math.min(1, Mg / 1e-3);   // fades in by ~1 mM
+   const CtWeight = Math.min(1, Ct / 1e-8);   // fades in by ~10 nM
+   const w = Math.max(MgWeight, CtWeight);    // choose whichever dominates
+   ```
+
+3. **Always compute mixed-salt correction, then blend results**  
+   Use the mixed-salt correction but fade its influence in smoothly:
+   ```js
+   const salt = melt.ion.mixedSalt({ Na, Mg, conc: Ct, T });
+   const activity = 1.0 * (1 - w) + salt.activityFactor * w;
+   const tmShift  = 0.0 * (1 - w) + salt.tmShift_C * w;
+   ```
+
+4. **Blend Beta with strand concentration scaling**  
+   Instead of a discrete switch, fade in the concentration effect:
+   ```js
+   const Beta = 1e-7 * ((1 - w) + w * (Ct / 0.5e-6));
+   ```
+
+5. **Replace existing `activityFactor` and `Beta` definitions**  
+   Use these blended quantities wherever the Polymer recursion references them.
+
+6. **Add explanatory comments**  
+   Document that this ensures a continuous asymptotic transition:
+   - As Mg→0 and Ct→0, behavior matches the original Polymer model.
+   - As Mg or Ct increase, melting curves transition smoothly to the mixed-salt regime.
+   - No discontinuous jumps occur when Mg crosses an arbitrary threshold.
+
+7. **Verification**  
+   - Confirm that increasing Mg or strand concentration gradually shifts the melting curve upward.
+   - Verify that with Mg=0 and Ct≈0, results match the legacy DECIPHER-based Polymer curves.
+   - Keep all other algorithms unchanged and maintain mixed-salt caching as before.
+
+```
+
+v0.7.3.4: More smooth blending.
+
+```md
+**Instruction for Codex (read first):**
+Implement a smooth, continuous blending mechanism for the Polymer algorithm so that the transition between the legacy (low-Mg, low-strand-concentration) and mixed-salt regimes is gradual and physically consistent.
+
+### Tasks
+1. **Replace existing linear blend logic**  
+   Remove or comment out the current block:
+   ```js
+   const MgWeight = Math.min(1, Mg / 1e-3);
+   const CtWeight = Math.min(1, Ct / 1e-8);
+   const blendWeight = Math.max(MgWeight, CtWeight);
+   ```
+
+2. **Add a smooth logistic (Hill-type) weighting function**  
+   Implement continuous weighting on free Mg²⁺ and strand concentration:
+   ```js
+   const MgFree = Math.max(0, Mg - (params?.dNTP ?? 0)); // M
+   const Ct = Math.max(1e-12, params?.conc ?? 0.5e-6);   // M
+
+   const K_Mg = 1e-3, n_Mg = 2;   // half-activation around 1 mM
+   const K_Ct = 1e-8, n_Ct = 2;   // half-activation around 10 nM
+
+   const wMg = 1 / (1 + Math.pow(K_Mg / Math.max(1e-12, MgFree), n_Mg));
+   const wCt = 1 / (1 + Math.pow(K_Ct / Math.max(1e-15, Ct),    n_Ct));
+   const blendWeight = Math.max(wMg, wCt);
+   ```
+
+3. **Use the blended weight for all downstream quantities**  
+   Maintain smooth transitions:
+   ```js
+   const salt = melt.ion.mixedSalt({ Na, Mg, conc: Ct, T });
+   const activity = (1 - blendWeight) * 1.0 + blendWeight * salt.activityFactor;
+   const tmShift  = (1 - blendWeight) * 0.0 + blendWeight * salt.tmShift_C;
+   const Beta     = 1e-7 * ((1 - blendWeight) + blendWeight * (Ct / 0.5e-6));
+   ```
+   These replace any existing discrete or thresholded versions of `activityFactor`, `tmShift`, and `Beta`.
+
+4. **Avoid special-case branches**  
+   Do not use conditions like `if (blendWeight === 0)` or `if (blendWeight === 1)`.
+   Always compute the blended values for numerical smoothness.
+
+5. **Add explanatory comments**  
+   Clarify in the code that:
+   - As Mg²⁺ → 0 and strand concentration → 0, the algorithm reproduces the legacy Polymer model.
+   - As Mg²⁺ or concentration increases, the model transitions smoothly to the mixed-salt regime.
+   - This prevents discontinuities (e.g., jumps around 1 mM Mg) and yields physically continuous melting curves.
+
+6. **Verification**  
+   - Sweep Mg from 0 → 2 mM at fixed Ct to confirm smooth Tₘ evolution.
+   - Sweep Ct from 0 → 100 nM at Mg=0; verify monotonic behavior.
+   - Confirm that Mg=0, Ct≈0 reproduces legacy DECIPHER-like curves.
+   - No discontinuous jumps should occur near the former 1 mM threshold.
+
+```
+
+v0.7.3.5: Instrument the Polymer algorithm to report both the unadjusted (baseline) and salt-corrected (adjusted) melting temperatures so we can see exactly where the sign or magnitude of the ΔTm shift is coming from.
+
+```md
+**Instruction for Codex (read first):**
+Augment the Polymer melting algorithm with internal diagnostics to output both the *baseline* and *adjusted* melting temperatures, enabling verification of salt-correction direction and magnitude.
+
+### Tasks
+
+1. **Add optional diagnostic logging**
+   - Add a new boolean flag `options.diagnostics` (default `false`).
+   - When `options.diagnostics` is `true`, the function should record:
+     ```js
+     {
+       Tm_base: <°C before any salt or conc correction>,
+       Tm_adj:  <°C after applying salt.tmShift_C and concentration blend>,
+       deltaTm: Tm_adj - Tm_base,
+       salt: { tmShift_C, activityFactor, Na_mM, Mg_mM, dNTP_mM, conc_M }
+     }
+     ```
+   - Include this object as `diagnostics` in the returned value from `simulatePolymer()`.
+
+2. **Capture both stages**
+   - Compute the baseline curve normally (before applying mixed-salt or concentration adjustments).
+   - Store the midpoint temperature of that curve as `Tm_base`.
+   - Apply the mixed-salt and concentration corrections (activityFactor, tmShift_C, Beta blending, etc.).
+   - Recompute or interpolate the adjusted midpoint as `Tm_adj`.
+   - Compute `deltaTm = Tm_adj - Tm_base`.
+
+3. **Emit diagnostics cleanly**
+   - The return value of `simulatePolymer()` should remain the same (with `temperatures` and `fractionMelted` arrays), but include:
+     ```js
+     return {
+       temperatures,
+       fractionMelted,
+       diagnostics: diagnosticsObject
+     };
+     ```
+   - If `options.diagnostics` is `false`, omit the property.
+
+4. **Implement helper for midpoint detection**
+   - Add a small internal helper:
+     ```js
+     function findTm(y, temps) {
+       const i = y.findIndex(p => p >= 0.5);
+       if (i <= 0 || i >= temps.length - 1) return NaN;
+       const frac = (0.5 - y[i - 1]) / (y[i] - y[i - 1]);
+       return temps[i - 1] + frac * (temps[i] - temps[i - 1]);
+     }
+     ```
+   - Use this to compute `Tm_base` and `Tm_adj`.
+
+5. **Update mixed-salt comment**
+   - Immediately above where `salt.tmShift_C` is applied, add a comment reminding that positive `tmShift_C` should *increase* duplex stability (raise Tₘ).  
+
+     ```js
+     // Note: Positive tmShift_C should correspond to *higher* Tm as Mg²⁺ increases.
+     ```
+
+6. **Verification checklist**
+   - Run the harness with `options.diagnostics: true` and log the returned `diagnostics` object.
+   - Confirm:
+     - `Tm_base` is constant across Mg sweep.
+     - `Tm_adj` increases with Mg (positive deltaTm).
+     - If deltaTm is negative, the correction sign must be flipped in `melt.ion.mixedSalt`.
+
+7. **Return format example**
+   ```js
+   {
+     temperatures: [...],
+     fractionMelted: [...],
+     diagnostics: {
+       Tm_base: 53.8,
+       Tm_adj: 56.4,
+       deltaTm: +2.6,
+       salt: {
+         tmShift_C: +2.6,
+         activityFactor: 1.08,
+         Na_mM: 50,
+         Mg_mM: 1,
+         dNTP_mM: 0,
+         conc_M: 5e-7
+       }
+     }
+   }
+
+```
+
+
+**Instruction for Codex (read first):**
+Implement version **v0.7.6 — Empirical Mg²⁺ correction and graceful blending**
+to replace the simplified mixed-salt heuristic and make strand-concentration scaling asymptotic and continuous.
+
+---
+
+### 1. Replace `melt.ion.mixedSalt()` with the full Owczarzy (2008) mixed-salt correction
+Use the empirical model from:
+
+> Owczarzy R., Moreira B.G., You Y., Behlke M.A., & Walder J.A. (2008).  
+> *Predicting stability of DNA duplexes in solutions containing magnesium and monovalent cations.*  
+> **Biochemistry 47**, 5336–5353. DOI: 10.1021/bi702363u  
+
+````js
+melt.ion.mixedSalt = function({ Na_mM, Mg_mM, dNTP_mM = 0, T_C, conc_M = 5e-7 }) {
+  // Convert to molar
+  const Na = Na_mM / 1000;
+  const Mg = Mg_mM / 1000;
+  const dNTP = dNTP_mM / 1000;
+  const Mg_free = Math.max(0, Mg - dNTP);
+
+  // Constants from Owczarzy 2008, Eq. 18
+  const a = 3.92e-5, b = -9.11e-6, c = 6.26e-5, d = 1.42e-5, e = -4.82e-4;
+  const fGC = 0.5; // average GC fraction; caller may override later if sequence-dependent
+
+  // Effective monovalent salt concentration (M)
+  const Na_eff = Na + 120 * Math.sqrt(Mg_free);
+  const logI = Math.log10(Math.max(1e-9, Na_eff));
+
+  // Temperature in Kelvin
+  const T_K = T_C + 273.15;
+
+  // Owczarzy empirical ΔTm adjustment (°C)
+  const deltaTm =
+    (a + b * fGC + c * Math.log10(Mg_free)) * (1 + d * Math.log10(Na_eff)) * 1e6 / T_K +
+    e * Math.log10(Mg_free);
+
+  // Activity factor (dimensionless) for pedagogical use
+  const activityFactor = 1 + 0.35 * Math.log10(Math.max(1e-9, Na_eff));
+
+  return {
+    I_mono: Na_eff,
+    Mg_free,
+    activityFactor,
+    tmShift_C: deltaTm
+  };
+};
+````
+
+Comments:
+- Positive `deltaTm` → higher Tm (stabilization with increasing Mg²⁺).  
+- All logarithms use base 10; coefficients are tuned to produce continuous results between 0–10 mM Mg²⁺.  
+- Include the literature citation above as inline comments.  
+
+---
+
+### 2. Fix blending and concentration scaling in `simulatePolymer`
+
+Replace:
+````js
+const blendWeight = Math.max(wMg, wCt);
+const Beta = baseBeta * ((1 - blendWeight) + blendWeight * (Ct / 0.5e-6));
+````
+
+with:
+````js
+// Smooth logistic weights
+const blendWeight = 1 - (1 - wMg) * (1 - wCt);  // true combination, not max
+
+// Asymptotic strand-conc. scaling
+const Beta = baseBeta * (1 + 0.5 * blendWeight * (Ct / 0.5e-6));
+````
+
+and ensure salt blending uses:
+````js
+const activity = (1 - blendWeight) * 1.0 + blendWeight * salt.activityFactor;
+const tmShift  = (1 - blendWeight) * 0.0 + blendWeight * salt.tmShift_C;
+````
+
+---
+
+### 3. Add sequence-aware GC fraction (optional)
+If `params.GCfrac` is provided, use it to replace the hard-coded value:
+````js
+const fGC = Math.min(1, Math.max(0, params?.GCfrac ?? 0.5));
+````
+
+---
+
+### 4. Verification checklist
+- Mg sweep (Ct = 0 µM): ΔTm should rise monotonically with Mg²⁺ up to ~5 mM.  
+- Ct sweep (Mg = 0 mM): ΔTm should remain near 0 at very low Ct, then increase smoothly and monotonically.  
+- Mg→0 and Ct→0: curves approach legacy baseline asymptotically (no discontinuities).  
+- Diagnostic flag (`options.diagnostics = true`) should show positive `tmShift_C` for rising Mg²⁺.  
+
+---
+
+### 5. Return behavior
+Keep all previous return fields unchanged.  
+`melt.ion.mixedSalt()` remains cached under identical `(Na, Mg, dNTP, T_C)` conditions for efficiency.  
+
+---
+
+### 6. Code comment header
+````js
+// --- Owczarzy (2008) Mixed-Salt Correction ---
+// Implements Biochemistry 47 (2008) 5336–5353 empirical model
+// Provides continuous Mg²⁺/Na⁺ transition and positive ΔTm for duplex stabilization.
+````
+
+After applying these changes, rerun the ΔTm harness:  
+the Mg curve should rise smoothly and plateau around 4–5 °C at 2 mM Mg, and the Ct curve should increase monotonically without a dip.
+
+
 ## Notes
 
 - Mixed‑salt correction is based on **Owczarzy et al. (2008) Biochemistry 47:5336–5353**. All constants and coefficients must follow that publication.
