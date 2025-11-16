@@ -1,12 +1,6 @@
 ---
 title: "DNA Melting Curve Simulation"
 author: "Robert Horton"
-date: today
-date-format: "long"
-description: ""
-image: ""
-image-alt: ""
-categories: ""
 code-fold: true
 code-summary: "Show the code"
 editor: source
@@ -17,7 +11,7 @@ format:
     toc-location: left
 ---
 
-# DNA Melting Curve Simulation Project Management Plan, 
+# DNA Melting Curve Simulation Project Management Plan 
 ## Focus Period: Weeks 9–11 (Nov–Dec 2025)
 
 ---
@@ -73,7 +67,29 @@ format:
 **Exercises to create:**
 
 1. **Intro to DNA Melting Curves** — Students learn how melting curves are generated, interpreted, and used.
-2. **Virus Strain Identification via Melting Curves** — Students use melting-curve differences to identify sequence variants.
+2. **Virus Strain Identification via Melting Curves** — Students use melting‑curve differences to identify sequence variants.
+
+**Expanded plan for Virus Strain Identification exercise:**
+
+- The **Data Wrangler** investigates the NCBI Influenza Virus Alignment tool:
+  https://www.ncbi.nlm.nih.gov/genomes/FLU/Database/nph-select.cgi#mainform
+  to generate multiple sequence alignments (MSAs) of viral variants.
+
+- The exercise will be based on a curated set of aligned sequences representing **amplicons** amplified from multiple strains.
+
+- To ensure the task is approachable for students, the selected variant set should have **melting curves that differ in easily detectable ways**.
+
+- Process for selecting strains:
+  - Begin with a large collection of strain candidate sequences.
+  - For each candidate sequence, compute the simulated melting curve using the Polymer model.
+  - Measure similarity between melting curves using **RMSE** as the distance metric.
+  - Perform **clustering** on the melting curves (e.g., hierarchical clustering or k‑means) using the RMSE matrix.
+  - Select representative strains from **well‑separated clusters**, ensuring strong curve‑level differences.
+  - Choose groups with clearly distinguishable melting features to modulate exercise difficulty.
+
+- Outcome for students:
+  - Given a set of unknown melting curves, students match them to the correct viral strain based on curve shape and derived metrics.
+  - Advanced versions may include noise, partial curves, or ambiguous clusters.
 
 **Deliverables:**
 
@@ -89,15 +105,23 @@ format:
 
 - **Sequence Simulation Module** using logic from the RMarkdown file:  
   `test_data/create_meltDNA_reference_curve_dataset.Rmd`
+
+- **Strain Identification Workflow**, including:
+  - ability to load curated viral strain panels,
+  - display and compare melting curves,
+  - interface for matching unknown curves to strain candidates,
+  - optional difficulty modes based on cluster separation.
+
 - **In-app instructional UI**, including:
   - tutorial steps,
   - embedded explanations,
-  - quizzes or interactive checks-for-understanding.
+  - quizzes or interactive checks-for-understanding for both exercises.
+
 - **General UI polish** and integration of new features.
 
 **Deliverables:**
 
-- Updated Teaching App with simulation, exercises support, help/instructions.
+- Updated Teaching App with simulation, strain-identification workflow, exercise support, and help/instructions.
 - Internal testing report.
 
 ---
@@ -121,22 +145,22 @@ format:
 
 ## 4. Week-by-Week Plan
 
-### **Week 9 (Nov 17–23, 2025)**
+### **Week 9 (Nov 17–23, 2025)
 **Team Meeting:** *Tuesday, Nov 18*
 
 **Focus:** Begin data comparison, outline exercises, start app feature specs.
 
 **Planned Outcomes:**
 
-- Data Wrangler: Import, digitize, and format PhiX174 & Phongroop curves.
-- Library/Testing Dev: Generate Polymer simulations for those sequences and produce visual overlays.
-- Exercise Author: Create outlines for both exercises.
-- Teaching App Dev: Identify UI requirements for sequence simulation & quiz integration.
-- Documentation: Begin writing *Introduction to DNA Melting Curves*.
+- Data Wrangler: Import, digitize, and format PhiX174 & Phongroop curves; **begin investigating Influenza viral sequences** and explore the NCBI Influenza Virus Alignment tool to generate preliminary MSAs for strain selection.
+- Library/Testing Dev: Generate Polymer simulations for those sequences and produce visual overlays; begin computing melting curves for viral MSA candidates.
+- Exercise Author: Create outlines for both exercises, including preliminary structure for the Virus Strain Identification workflow.
+- Teaching App Dev: Identify UI requirements for sequence simulation, quiz integration, and strain-identification workflow support.
+- Documentation: Begin writing *Introduction to DNA Melting Curves*. *Introduction to DNA Melting Curves*.
 
 ---
 
-### **Week 10 (Nov 24–30, 2025)**
+### **Week 10 (Nov 24–30, 2025)
 **Team Meeting:** *Tuesday, Nov 25*
 
 **Focus:** Heavy development + writing week.
@@ -144,14 +168,15 @@ format:
 **Planned Outcomes:**
 
 - Simulation comparison refined with metrics and polished plots.
-- Exercises: Full drafts ready (text, instructions, datasets, assessment items).
-- Teaching App Dev: Implement sequence simulation module; begin integrating instructional UI.
+- Data Wrangler & Library/Testing Dev: Compute melting curves for a wide set of viral candidates; produce RMSE distance matrix; run clustering to select pedagogically appropriate strains.
+- Exercises: Full drafts ready (text, instructions, datasets, assessment items), including curated strain panels for Virus Strain Identification.
+- Teaching App Dev: Implement sequence simulation module; begin integrating instructional UI and strain‑matching workflow.
 - Product Manager: Review UX, coordinate iteration.
-- Documentation expanded to include software usage and exercise instructions.
+- Documentation expanded to include software usage, exercise instructions, and viral‑strain workflow details. to include software usage and exercise instructions.
 
 ---
 
-### **Week 11 (Dec 1–7, 2025)**
+### **Week 11 (Dec 1–7, 2025)
 **Team Meeting:** *Tuesday, Dec 2*
 
 **Focus:** Finalization, integration, polishing, release packaging.
@@ -159,32 +184,52 @@ format:
 **Planned Outcomes:**
 
 - Simulation comparison completed and documented.
-- Final exercise materials tested and polished.
-- Teaching App finalized with all necessary features and cleaned-up UI.
-- Documentation complete and integrated into GitHub.
-- End-of-project summary and release instructions.
+- Final exercise materials tested and polished, including the Virus Strain Identification dataset, clustering explanation, and curated strain set.
+- Teaching App finalized with all necessary features, including strain‑identification UI elements and cleaned‑up interface.
+- Documentation complete and integrated into GitHub, including full viral workflow and sequence‑selection rationale.
+- End-of-project summary and release instructions..
 
 ---
 
 ## 5. Risks & Mitigation
 
 - **Experimental data formatting issues** → Early Week 9 focus on preprocessing.
-- **Time pressure on instructional UI features** → Prioritize minimal viable version of tutorial + quiz features.
+
+- **Influenza strain MSA retrieval difficulties** → Data Wrangler will begin NCBI tool exploration early in Week 9; fallback: use curated public datasets if tool is unavailable.
+
+- **Clustering-based strain selection may yield insufficiently distinct melting curves** → Use larger candidate pool; adjust RMSE thresholds; allow Exercise Author & Dev to tune difficulty by selecting clusters with clear separation.
+
+- **Time pressure on instructional UI and strain-identification workflow** → Prioritize minimal viable version of tutorial, quiz features, and strain-matching interface.
+
 - **Documentation overload** → Build documentation continuously across Weeks 9–11.
-- **Sequence simulation complexity** → Use existing tested logic from the RMarkdown generator to minimize new bugs.
+
+- **Sequence simulation complexity** → Use existing tested logic from the RMarkdown generator to minimize new bugs and ensure consistency across simulated viral amplicons.** → Use existing tested logic from the RMarkdown generator to minimize new bugs.
 
 ---
 
 ## 6. Success Criteria by End of Week 11
 
 - Polymer algorithm validated against both experimental datasets.
-- Two fully developed student exercises ready for instructional deployment.
-- Teaching App supports all exercise workflows and includes simulation + instructional UI.
+
+- Two fully developed student exercises ready for instructional deployment, **including a complete Virus Strain Identification workflow** with:
+  - MSA-derived viral amplicon sequences,
+  - melting-curve simulations,
+  - RMSE-based curve clustering,
+  - curated strain panels chosen for pedagogical clarity.
+
+- Teaching App supports all exercise workflows and includes:
+  - sequence simulation,
+  - instructional UI,
+  - quiz or assessment components,
+  - **strain-identification interface** for matching melting curves to viral variants.
+
 - Complete documentation covering:
   - DNA melting curve fundamentals,
-  - How to use the app and library,
-  - How to perform the exercises,
-  - The role of LLMs in the project.
+  - how to use the Teaching App and library,
+  - how to perform both exercises,
+  - **details of the viral workflow (MSA import, curve clustering, strain selection)**,
+  - the role of LLMs in the project.
+
 - All materials published in the GitHub repository, ready for use in teaching.
 
 ---
@@ -192,9 +237,10 @@ format:
 ## 7. Immediate Next Steps (Start of Week 9)
 
 - Data Wrangler finishes digitizing the two experimental curve sources and formatting them as reference curves.
-- Library and Testing Dev loads the experimentally derived reference curves into the Testing App and compares them to the Polymer simulations.
-- Exercise Author drafts learning objectives and outlines.
+- **Data Wrangler begins investigating Influenza viral sequences and exploring the NCBI Influenza Virus Alignment tool to generate preliminary multiple sequence alignments for candidate strains.**
+- Library and Testing Dev loads the experimentally derived reference curves into the Testing App and compares them to the Polymer simulations; begins computing melting curves for preliminary viral candidates.
+- Exercise Author drafts learning objectives and outlines for both exercises, including the viral-strain identification workflow.
 - Product Manager drafts design notes for required Teaching App features.
-- Teaching App Dev generates Codex prompts to implement Teaching App features.
+- Teaching App Dev generates Codex prompts to implement Teaching App features, including strain-identification components.
 
 **End of Document**
