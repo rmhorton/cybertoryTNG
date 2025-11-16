@@ -35,7 +35,7 @@ format:
 
 - **Teaching App Product Manager** — Oversees app vision, ensures pedagogical alignment, coordinates team.
 - **Teaching App Dev** — Implements Teaching App feature updates, UI/UX polish, instructional components.
-- **Data Wrangler** — Extracts, digitizes, cleans, and formats experimental melting curves.
+- **Data Wrangler** — Extracts, digitizes, cleans, and formats experimental melting curves; handles DNA sequence retrieval, preprocessing, and **multiple sequence alignments (MSAs)** for viral and other sequence-based workflows.
 - **Exercise Author** — Designs student exercises, learning pathways, and instructional assessments.
 - **Library and Testing Dev** — Maintains testing app, shared library, simulation correctness, and handles Polymer algorithm comparisons.
 
