@@ -1,0 +1,100 @@
+---
+title: "Simulating Reference Curves with meltDNA"
+author: "Bob"
+date: "2025-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(Biostrings)
+library(DECIPHER)
+library(dplyr)
+library(ggplot2)
+library(jsonlite)
+
+TEMPERATURES <- seq(40, 100, 0.1)
+```
+
+## Sequence Simulator
+
+Generate random sequences of specified length and GC content.
+
+```{r seq_sim}
+
+sim_seq <- function(n_bases, gc=0.5){
+	BASES = c('A', 'C', 'G', 'T')
+	rel_prob = c((1-gc), gc, gc, (1-gc))
+	prob = rel_prob/sum(rel_prob)
+	sample(BASES, n_bases, prob=prob, replace=TRUE)
+}
+
+sim_segments <- function(segment_specs){
+	# segment_specs: a list of parameter sets for sim_seq, each specifying n_bases and gc
+	lapply(segment_specs, function(ss) do.call(sim_seq, ss)) |> 
+		unlist() |> 
+		paste(collapse='')
+}
+```
+
+## Create Sequences
+
+This creates sequences having "stripe patterns" where each "stripe" is a segment of random DNA sequence having a specified GC content. You can have however many stripes you want, but here I am always specifying 4 per molecule, each of the same length.
+
+```{r create_sequences}
+segment_size = c(25, 100, 200)
+
+gc_stripe_patterns = list(
+	A = c(0.1, 0.1, 0.1, 0.1),
+	B = c(0.25, 0.25, 0.25, 0.25),
+	C = c(0.5, 0.5, 0.5, 0.5),
+	D = c(0.75, 0.75, 0.75, 0.75),
+	E = c(0.1, 0.9, 0.1, 0.9),
+	F = c(0.25, 0.75, 0.25, 0.75),
+	G = c(0.25, 0.25, 0.75, 0.75),
+	H = c(0.75, 0.75, 0.25, 0.25)
+)
+
+get_segment_specs <- function(segsize, pattern_id){
+	gc_stripe_pattern <- gc_stripe_patterns[[pattern_id]]
+	lapply(gc_stripe_pattern, function(gc) list(n_bases=segsize, gc=gc))
+}
+
+set.seed(42)
+Na_CONC = 0.05
+results <- list()
+for (segsize in segment_size){
+	for (strpat in names(gc_stripe_patterns)){
+		for (sample_id in 1:3){
+			seq_name <- sprintf("seq_%d_%s_%d", segsize, strpat, sample_id)
+			seq <- get_segment_specs(segsize, strpat) |> sim_segments()
+			print(seq_name) # paste0(seq_name, ': ',  seq))
+			m <- MeltDNA(seq, type="melt", temps=TEMPERATURES, ions=Na_CONC)
+
+			melt_curve <- data.frame(temperature=TEMPERATURES, fraction_melted= 1 - m[,1])
+			g <- melt_curve |> 
+				mutate(dFdT=fraction_melted - lag(fraction_melted)) |>
+				ggplot(aes(x=temperature, y=dFdT)) + geom_line()
+			plot(g)
+			
+			results[[seq_name]] <- list(
+				sequence = seq,
+				melting_curve = melt_curve
+			)
+		}
+	}
+}
+
+
+ref_curve_json <- results |> 
+	toJSON(dataframe="columns")
+
+# write(ref_curve_json, "meltDNA_ref_curves.json") 
+
+# We can only use JS, not JSON; this needs to be a .js file starting with "window.refData ="
+paste("window.refData", ref_curve_json, sep='=') |> write("meltDNA_ref_curves.js")
+```
+
