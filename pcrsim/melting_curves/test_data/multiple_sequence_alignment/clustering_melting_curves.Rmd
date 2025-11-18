@@ -1,0 +1,433 @@
+---
+title: "Cluster amplicon sequences by melting curves"
+author: "Bob"
+date: "2025-11-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(Biostrings)
+library(DECIPHER)
+library(dplyr)
+library(ggplot2)
+library(jsonlite)
+```
+
+```{r functions}
+read_fasta <- function(filepath) {
+  # Read all lines
+  lines <- readLines(filepath)
+  
+  # Identify header lines
+  header_idx <- grep("^>", lines)
+  
+  # Add sentinel for end of file
+  header_idx <- c(header_idx, length(lines) + 1)
+  
+  seq_names <- character()
+  seq_list  <- list()
+  
+  # Loop through each sequence block
+  for (i in seq_len(length(header_idx) - 1)) {
+    header <- lines[header_idx[i]]
+    name <- sub("^>", "", header)
+    
+    # Extract sequence lines between this header and the next
+    start <- header_idx[i] + 1
+    end   <- header_idx[i + 1] - 1
+    
+    if (start <= end) {
+      seq <- paste(lines[start:end], collapse = "")
+      seq <- gsub("\\s+", "", seq)
+      seq <- toupper(seq)
+    } else {
+      seq <- ""
+    }
+    
+    seq_names[i] <- name
+    seq_list[[i]] <- seq
+  }
+  
+  # Return named character vector
+  result <- unlist(seq_list)
+  names(result) <- seq_names
+  return(result)
+}
+
+
+write_fasta <- function(seqs, outfile) {
+  con <- file(outfile, "w")
+  on.exit(close(con))
+  
+  for (i in seq_along(seqs)) {
+    writeLines(paste0(">", names(seqs)[i]), con)
+    writeLines(seqs[i], con)
+  }
+}
+
+```
+
+## Primer design function
+
+I gave this prompt to ChatGPT: 
+```
+Write R code to design PCR primers to amplify targeted regions of this alignment. The user should provide a set of aligned target sequences, and an approximate desired amplicon size. The primer design code should propose sets of forward and reverse primer sequences, together with their starting and ending locations on the alignment. Primers should be placed in more conserved regions of the alignment, and primer pairs should span divergent regions. IUPAC ambiguity codes should be placed in the primer sequences as needed.
+```
+
+It returned the code in the chunk bleow, with this description:
+```
+Here’s a self-contained R implementation that does what you described:
+	•	Input:
+	•	a named character vector of equal-length aligned sequences (with - gaps)
+	•	an approximate desired amplicon size (in bases, ungapped)
+	•	Output:
+	•	a data frame of proposed primer pairs, with:
+	•	forward and reverse primer sequences (with IUPAC ambiguity codes)
+	•	their start/end positions on the alignment (column indices)
+	•	approximate amplicon size (in alignment columns)
+
+This is a heuristic “primer finder”, not a full primer3 substitute, but it respects:
+	•	primers placed in more conserved regions of the alignment
+	•	primer pairs spanning more divergent regions (interior more variable)
+	•	use of IUPAC ambiguity codes at mismatched positions
+```
+```{r primer_design}
+
+## Helper: convert aligned sequences (character vector) to matrix
+alignment_to_matrix <- function(aligned_vec) {
+  stopifnot(length(unique(nchar(aligned_vec))) == 1)
+  L <- nchar(aligned_vec[1])
+  N <- length(aligned_vec)
+  mat <- matrix(NA_character_, nrow = N, ncol = L)
+  for (i in seq_len(N)) {
+    mat[i, ] <- strsplit(aligned_vec[i], split = "")[[1]]
+  }
+  rownames(mat) <- names(aligned_vec)
+  mat
+}
+
+## IUPAC encoding for sets of bases
+iupac_from_bases <- function(bases) {
+  bases <- toupper(unique(bases))
+  bases <- bases[bases %in% c("A","C","G","T")]  # ignore gaps/ambiguous
+  if (length(bases) == 0) return("-")
+  key <- paste(sort(bases), collapse = "")
+  iupac_map <- c(
+    "A"   = "A",
+    "C"   = "C",
+    "G"   = "G",
+    "T"   = "T",
+    "AG"  = "R",
+    "CT"  = "Y",
+    "CG"  = "S",
+    "AT"  = "W",
+    "GT"  = "K",
+    "AC"  = "M",
+    "ACG" = "V",
+    "ACT" = "H",
+    "AGT" = "D",
+    "CGT" = "B",
+    "ACGT"= "N"
+  )
+  if (!key %in% names(iupac_map)) return("N")
+  iupac_map[[key]]
+}
+
+## IUPAC complement (for reverse primer)
+iupac_complement <- function(seq) {
+  seq_vec <- strsplit(seq, "")[[1]]
+  comp_map <- c(
+    "A"="T","T"="A","G"="C","C"="G",
+    "R"="Y","Y"="R","S"="S","W"="W",
+    "K"="M","M"="K","B"="V","V"="B",
+    "D"="H","H"="D","N"="N","-"="-"
+  )
+  comp <- comp_map[toupper(seq_vec)]
+  paste(rev(comp), collapse = "")
+}
+
+## Compute per-column consensus IUPAC and conservation
+consensus_and_conservation <- function(aln_mat) {
+  L <- ncol(aln_mat)
+  consensus <- character(L)
+  conservation <- numeric(L)
+  n_non_gap   <- integer(L)
+  
+  for (j in seq_len(L)) {
+    col <- aln_mat[, j]
+    bases <- col[col != "-"]
+    n <- length(bases)
+    n_non_gap[j] <- n
+    if (n == 0) {
+      consensus[j] <- "-"
+      conservation[j] <- 0
+    } else {
+      tab <- table(toupper(bases))
+      consensus[j] <- iupac_from_bases(names(tab))
+      conservation[j] <- max(tab) / n
+    }
+  }
+  
+  list(consensus = consensus,
+       conservation = conservation,
+       n_non_gap = n_non_gap)
+}
+
+## Find candidate primer windows in conserved regions
+find_conserved_windows <- function(consensus, conservation, n_non_gap,
+                                   primer_len = 22,
+                                   min_conservation = 0.9,
+                                   min_coverage_frac = 0.8,
+                                   max_degenerate_positions = 4) {
+  L <- length(consensus)
+  starts <- seq_len(L - primer_len + 1)
+  
+  res <- vector("list", length(starts))
+  idx <- 1
+  
+  for (s in starts) {
+    e <- s + primer_len - 1
+    cons_win <- consensus[s:e]
+    conscores <- conservation[s:e]
+    cov <- n_non_gap[s:e]
+    
+    # require decent coverage across sequences
+    if (mean(cov > 0) < min_coverage_frac) next
+    
+    # require reasonably high conservation
+    if (min(conscores) < min_conservation) next
+    
+    # count positions with ambiguity beyond A/C/G/T (i.e., degenerate IUPAC)
+    degenerate_pos <- sum(!cons_win %in% c("A","C","G","T","-"))
+    if (degenerate_pos > max_degenerate_positions) next
+    
+    # skip if any column is all gaps
+    if (any(cons_win == "-")) next
+    
+    res[[idx]] <- list(
+      start = s,
+      end   = e,
+      seq   = paste(cons_win, collapse = ""),
+      mean_conservation = mean(conscores)
+    )
+    idx <- idx + 1
+  }
+  
+  res <- res[seq_len(idx - 1)]
+  if (length(res) == 0) return(NULL)
+  
+  df <- do.call(rbind, lapply(res, as.data.frame))
+  # order by conservation (best first)
+  df[order(-df$mean_conservation), ]
+}
+
+## Main function: design primer pairs
+design_primers_from_alignment <- function(aligned_vec,
+                                          target_amplicon_size = 400,
+                                          primer_len = 22,
+                                          size_tolerance = 50,
+                                          max_pairs = 10) {
+  aln_mat <- alignment_to_matrix(aligned_vec)
+  info <- consensus_and_conservation(aln_mat)
+  consensus <- info$consensus
+  conscores <- info$conservation
+  cov       <- info$n_non_gap
+  
+  # Candidate windows for primers
+  win_df <- find_conserved_windows(
+    consensus = consensus,
+    conservation = conscores,
+    n_non_gap = cov,
+    primer_len = primer_len
+  )
+  if (is.null(win_df) || nrow(win_df) == 0) {
+    warning("No suitable conserved primer windows found.")
+    return(NULL)
+  }
+  
+  # Pair windows: forward (left) and reverse (right)
+  pairs <- list()
+  idx <- 1
+  n <- nrow(win_df)
+  
+  for (i in seq_len(n)) {
+    f_start <- win_df$start[i]
+    f_end   <- win_df$end[i]
+    f_seq   <- win_df$seq[i]
+    
+    # candidate reverse windows must be to the right
+    for (j in seq_len(n)) {
+      r_start <- win_df$start[j]
+      r_end   <- win_df$end[j]
+      if (r_start <= f_start) next
+      
+      amplicon_size_est <- r_end - f_start + 1
+      
+      if (abs(amplicon_size_est - target_amplicon_size) <= size_tolerance) {
+        r_cons_seq <- win_df$seq[j]
+        r_seq <- iupac_complement(r_cons_seq)
+        
+        pairs[[idx]] <- data.frame(
+          f_start = f_start,
+          f_end   = f_end,
+          f_seq   = f_seq,
+          r_start = r_start,
+          r_end   = r_end,
+          r_seq   = r_seq,
+          amplicon_size_align = amplicon_size_est,
+          f_mean_conservation = win_df$mean_conservation[i],
+          r_mean_conservation = win_df$mean_conservation[j],
+          stringsAsFactors = FALSE
+        )
+        idx <- idx + 1
+      }
+    }
+  }
+  
+  if (length(pairs) == 0) {
+    warning("No primer pairs found within the requested amplicon size tolerance.")
+    return(NULL)
+  }
+  
+  pairs_df <- do.call(rbind, pairs)
+  
+  # Score pairs: closer to target size and higher conservation
+  pairs_df$size_diff <- abs(pairs_df$amplicon_size_align - target_amplicon_size)
+  pairs_df$score <- -pairs_df$size_diff +
+    (pairs_df$f_mean_conservation + pairs_df$r_mean_conservation)
+  
+  pairs_df <- pairs_df[order(-pairs_df$score), ]
+  
+  if (nrow(pairs_df) > max_pairs) {
+    pairs_df <- head(pairs_df, max_pairs)
+  }
+  
+  rownames(pairs_df) <- NULL
+  pairs_df
+}
+
+```
+
+
+```{r load_data}
+# aligned sequences saved in "Pearson/FASTA" format
+aligned_fasta_file <- "clustalo-I20251116-193613-0587-9294228-p1m.aln-fasta"
+
+aligned_seqs <- read_fasta(aligned_fasta_file)
+
+primer_candidates <- design_primers_from_alignment(aligned_seqs,
+                          target_amplicon_size = 400,
+                          primer_len = 11,
+                          size_tolerance = 300,
+                          max_pairs = 10)
+
+primer_candidates
+```
+
+Based on these potential primer locations, I chose to extract amplicons from alignment positions 1159 through 1789.
+
+```{r extract_amplicons}
+start_col <- 1159
+end_col <- 1789
+
+extract_region <- function(aligned_seq, start_col, end_col) {
+  substring(aligned_seq, start_col, end_col)
+}
+
+amplicons_aligned <- vapply(aligned_seqs, extract_region,
+                         start_col = start_col,
+                         end_col = end_col,
+                         FUN.VALUE = character(1))
+
+amplicons <- gsub("-", "", amplicons_aligned) # ungapped amplicon sequences
+
+# write_fasta(amplicons_ungapped, "amplicons.fasta")
+```
+
+## Generate a melting curve for each amplicon
+
+```{r amplicon_melting_curves, fig.height=4, fig.width = 4}
+TEMPERATURES <- seq(65, 85, 0.1) # they all melt in this range
+Na_CONC <- 0.05
+
+melting_curves <- lapply(amplicons, function(i) list()) # list of empty lists
+for (i in seq_along(amplicons)){
+	amplicon_description <- names(amplicons)[i]
+	amplicon_id <- strsplit(amplicon_description, " ")[[1]][1]
+	seq <- amplicons[[amplicon_description]]
+	print(amplicon_id)
+	m <- MeltDNA(seq, type="melt", temps=TEMPERATURES, ions=Na_CONC)
+
+	melt_curve <- data.frame(temperature=TEMPERATURES, fraction_melted= 1 - m[,1])
+	
+	melting_curves[[amplicon_description]] <- melt_curve
+}
+
+```
+
+```{r plot_melting_curves}
+
+(i in seq_along(melting_curves)){
+	
+	
+	# g <- melt_curve |> 
+	# 	ggplot(aes(x=temperature, y=fraction_melted)) + 
+	# 		geom_line() +
+	# 		ggtitle(sprintf("%s fraction melted", amplicon_id))
+	# 
+	# plot(g)
+	
+	suppressMessages({
+		g_dFdT <- melt_curve |>
+			mutate(dFdT=fraction_melted - lag(fraction_melted)) |>
+			ggplot(aes(x=temperature, y=dFdT)) + 
+				geom_line( col='blue') +
+				ggtitle(sprintf("Amplicon #%d, '%s'", i, amplicon_id))
+	})
+	
+	plot(g_dFdT)
+}
+
+
+```
+
+```{r cluster_melting_curves}
+
+rmse <- function(a, b) sqrt(mean((a - b)^2)) # root mean squared error
+mae <- function(a, b) mean(abs(a - b)).      # mean absolute error
+
+melts <- do.call("rbind", lapply(melting_curves, function(mc) mc$fraction_melted))
+
+N <- nrow(melts)
+dmat <- matrix(0, N, N)
+for (i in 1:N) {
+  for (j in i:N) {
+    d <- rmse(melts[i,], melts[j,]) # try rmse, mae, 1 - cor
+    dmat[i,j] <- d
+    dmat[j,i] <- d
+  }
+}
+D <- as.dist(dmat)
+hc <- hclust(D, method = "average")
+plot(hc)
+
+```
+
+## Select sequences for exercise
+
+We want sequences that will give melting curves that are easy to distinguish, so for each branch of the tree we select the one with the lowest "height".
+
+```{r select_sequences}
+
+NUM_EXAMPLES <- 3
+cluster_stats <- data.frame(
+	seq_num = seq_along(hc$order),
+	# height = hc$height, 
+	branch_number = cutree(hc, k=NUM_EXAMPLES)
+)
+
+```
