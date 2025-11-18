@@ -1,5 +1,5 @@
 ---
-title: "Melting Curves fro Phongroop 2023"
+title: "Phongroop 2023 Melting Curves"
 author: "Bob"
 date: "2025-10-16"
 output: html_document
@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
 ```
 
 Here we extract melting curve data from Phongroop K, Rattanasrisomporn J, Tangtrongsup S, Rungsipipat A, Piewbang C, Techangamsuwan S. [High-resolution melting analysis for simultaneous detection and discrimination between wild-type and vaccine strains of feline calicivirus](https://pubmed.ncbi.nlm.nih.gov/37851857/). Vet Q. 2023 Dec;43(1):1-12. doi: 10.1080/01652176.2023.2272188. Epub 2023 Nov 1. PMID: 37851857; PMCID: PMC11003490. , 
@@ -49,49 +52,108 @@ fit_curve_data <- function(file_name){
 	points_df <- read.csv(file.path('points_data', file_name),
 												col.names=c("x", "y"))
 	
+	# Correct the point at the beginning of the curve
+	points_df[1,'x'] <- 0
+	points_df[1,'y'] <- 0.97 # fudged to make points match figure
+	
 	points_df$temperature <- 79.5 + points_df$x * (90.0 - 79.5)
 	points_df$fluorescence <- 12 + points_df$y * (102.0 - 12) # fudge factors
 	
-	fit_ss <- with(points_df, smooth.spline(temperature, fluorescence, nknots = 20)) # try various numbers of knots 
-
-	std_data <- data.frame(temperature = seq(79.5, 90.0, by=0.1))
-	std_data['fluorescence'] <- predict(fit_ss, std_data['temperature'])$y
-
-	return(std_data)
+	return(points_df)
 }
 
+plot_over_fig1_image <- function(points_df_list, title=""){
+	library(png)
+	my_image <- readPNG("Phongroop_fig1a.png")
+	 
+	# Set up a plot area with no plot
+	plot(c(79.5, 90.0), c(-5, 100), type='n', main=title, xlab="x", ylab="y")
+	 
+	# Draw the plot such that the image fills the plot box.
+	# lim <- par()
+	rasterImage(my_image, 
+	            xleft=79.1, xright=90.2, # edges of the image in plot coordinates
+	            ybottom=-12, ytop=114)
+	grid()	
+	
+	for (strain_name in names(points_df_list)){
+		points_df <- points_df_list[[strain_name]]
+		with(points_df, points(temperature, fluorescence, pch=20, 
+													 col=color_legend[strain_name],
+													 cex=0.5))
+	}
+}
 
-library(png)
-my_image <- readPNG("Phongroop_fig1a.png")
- 
-# Set up a plot area with no plot
-plot(c(79.5, 90.0), c(-5, 100), type='n', main="", xlab="x", ylab="y")
- 
-# Draw the plot such that the image fills the plot box.
-# lim <- par()
-rasterImage(my_image, 
-            xleft=79.1, xright=90.2, # edges of the image in plot coordinates
-            ybottom=-12, ytop=114)
-grid()
 
 data_files <- list.files('points_data') |> 
 	grep(".csv$", x=_, value=TRUE)
 
-for (fn in data_files){
-	points_df <- fit_curve_data(fn)
-	strain_name <- fn |> gsub('.csv', '', x=_, fixed=TRUE)
-	with(points_df, points(temperature, fluorescence, pch=20, 
-												 col=color_legend[strain_name],
-												 cex=0.5))
-}
+names(data_files) <- gsub('.csv', '', data_files, fixed=TRUE)
 
+points_df_list <- lapply(data_files, fit_curve_data)
 
-
+points_df_list |> plot_over_fig1_image("Raw data")
 
 ```
+
+# Standardized data points
+
+fit a curve and interpolate points so we get measurements at specific temperatures.
+
+```{r plot_standardized_data}
+standardize_data_points <- function(points_df, nknots=20){
+	fit_ss <- with(points_df, smooth.spline(temperature, fluorescence, nknots=nknots)) # try various numbers of knots 
+	
+	std_data <- data.frame(temperature = seq(79.5, 90.0, by=0.1))
+	std_data['fluorescence'] <- predict(fit_ss, std_data['temperature'])$y
+	
+	return(std_data)
+}
+
+points_df_list |> lapply(standardize_data_points) |> plot_over_fig1_image("Standardized data")
+
+```
+
+
+```{r ggplot_data_points}
+library(dplyr)
+library(ggplot2)
+
+add_name_as_column <- function(strain_name){
+	points_df <- points_df_list[[strain_name]]
+	points_df['strain_name'] <- strain_name
+	points_df
+}
+
+std_points <- names(points_df_list) |> 
+	lapply(add_name_as_column) |> 
+	bind_rows()
+
+g <- std_points |>
+	ggplot(aes(x=temperature, y=fluorescence, col=strain_name)) + geom_line() + geom_point()
+
+# background change in fluorescence
+top_slope <- -3.7
+bot_slope <- -0.6
+g + 
+	geom_abline(intercept= 99 - 79.5*top_slope, slope=top_slope) +
+	geom_abline(intercept= 7.5 - 79.5*bot_slope, slope=bot_slope)
+
+std_points <- std_points |> 
+	mutate(
+		fluor_max = 99 - 79.5*top_slope + temperature * top_slope,
+		fluor_min = 7.5 - 79.5*bot_slope + temperature * bot_slope,
+		helicity = (fluorescence - fluor_min) / (fluor_max - fluor_min),
+		fraction_melted = 1 - helicity
+	)
+
+std_points |> ggplot(aes(x=temperature, y=helicity, col=strain_name)) + geom_line()
+
+```
+
 ### Amplicon sequences
 
-The amplicon sequences are available from the [supplemental Materials](https://pmc.ncbi.nlm.nih.gov/articles/instance/11003490/bin/TVEQ_A_2272188_SM3964.docx). This is a Word document, but since the amplicon data is in a table, it was straightforward to save it as a CSV file. I edited the CSV slightly to make it easier to load.
+Selected amplicon sequences are available from the [supplemental Materials](https://pmc.ncbi.nlm.nih.gov/articles/instance/11003490/bin/TVEQ_A_2272188_SM3964.docx). This is a Word document, but since the amplicon data is in a table, it was straightforward to save it as a CSV file. I edited the CSV slightly to make it easier to load.
 
 Note that the melting curves were run on a subregion of the sequences in the table, defined by these primers:
 
@@ -103,10 +165,62 @@ which use these [IUPAC ambiguity codes](https://en.wikipedia.org/wiki/Nucleic_ac
 	* W: (Weak) A or T
 	* H: (not G) A, C, or T
 
-```{r amplicon_sequences}
-amplicon_file <- "Phongroop_amplicon_sequences.csv"
+<style type="text/css">
+td { /* Apply to table data cells */
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+}
+</style>
+```{r hrm_amplicon_sequences, eval=TRUE}
+hrm_file <- "Phongroop_hrm_amplicon_sequences.csv"
+hrm_df <- read.csv(hrm_file)
+knitr::kable(hrm_df[c('FCV.strain', 'HRM_amplicon')])
+```
 
-amplicon_df <- read.csv(amplicon_file)
 
-knitr::kable(amplicon_df)
+## Save reference curves
+
+Conditions:
+
+Assume that 1X PCR buffer is 1.5 mM Mg and 50mM Na.
+
+See 
+
+* Qiagen [Type-it® HRM™ PCR Handbook](https://www.qiagen.com/it/resources/download.aspx?id=a800ede3-2322-4341-a5c1-a9cbb6f630a3&lang=en)
+
+* [GoTaq Green notes](https://www.promega.com/-/media/files/resources/promega-notes/91/gotaq-green-master-mix-from-amplification-to-analysis.pdf).
+
+```{r save_reference_curves}
+library(jsonlite)
+
+amplicon_strain_id <- c(
+		"Reference strain FCV-Vac (Nobivac® 1- HCPCh)" = "Nobivac1_HCPCh",
+		"Reference strain GX01-13" = "FCV_GX01-13",
+		"Wild-type Thai strain: FCV-TH/KP313" = "FCV-TH/KP313",
+		"Reference strain UTCVM-H2" = "FCV_UTCVM-H2"
+)
+
+amplicon_df <- hrm_df[hrm_df$FCV.strain %in% names(amplicon_strain_id), ]
+row.names(amplicon_df) <- amplicon_strain_id[amplicon_df[['FCV.strain']]]
+
+
+strains <- setNames(nm=row.names(amplicon_df))
+
+# this_strain = "Nobivac1_HCPCh"
+
+get_ref_curve <- function(this_strain){
+	list(
+		sequence = amplicon_df[this_strain, "HRM_amplicon"],
+		melting_curve = std_points |> 
+			filter(strain_name == this_strain) |> 
+			select(temperature, fraction_melted)
+	)
+}
+
+ref_curve_json <- strains |> 
+	lapply(get_ref_curve) |>
+	toJSON(dataframe="columns")
+
+write(ref_curve_json, "Phongroop_ref_curves.json")
+
 ```
